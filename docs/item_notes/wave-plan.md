@@ -22,6 +22,7 @@ row per slice, and pointers; every rule it depends on is owned elsewhere and nam
 - Each row's hub-chain place: its `chain` cell, keyed by `### Hub files` below; a leaf's
   `Hub chains` line is its filing-time per-wave order and is not read for a place.
 - The wave runbook - wave size (B, G and the capacity cap), the one push and the exit record: `docs/OPERATIONS.md` section 10.8.
+- The landing rule for each group's new files, its stamps and its census run: `docs/OPERATIONS.md` section 10.8, "10.8 Waves - one per session, one gated suite, one push", the Landing stamps paragraph; the stamp command: `docs/OPERATIONS.md` section 2.
 
 Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning session 159, sha256 values in their docs/LEDGER.md copy record.
 
@@ -56,27 +57,27 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W0a | 1 | W0-G1-S1 | CS-913.1 | product | none | none | none | - | - | - | H014 1/16; H015 1/15 |
 | W0a | 1 | W0-G1-S2 | CS-425; CS-448; CS-489; CS-492; CS-614; CS-701; CS-839; CS-840; CS-841; CS-842; CS-938; CS-941; CS-976; CS-981; CS-993; CS-1007; CS-1119; CS-1255; CS-1259; U-001 not filed; U-113 not filed; U-139 not filed; U-155 not filed | process; product | none | `BACKLOG.md`, `CS-NEXT-SESSION.txt`, `ROADMAP.md`, `config/lane_scopes.json`, `docs/GATED.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4-followups-1000.md`, `docs/item_notes/phase4-followups-900.md`, `docs/item_notes/phase4-followups-960.md`, `docs/item_notes/phase4-followups.md`, `docs/item_notes/phase4.md`, `docs/item_notes/phase6.md`, `docs/item_notes/phase7.md` | none | - | - | - | H001 1/45; H007 1/25; H011 1/20; H069 1/6; H071 1/6; H085 1/5; H105 1/4; H110 1/4; H112 1/4; H114 1/4 |
 | W0a | 2 | W0-G2-S1 | CS-914 | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | - | H040 1/9; H044 1/8 |
-| W0a | 2 | W0-G2-S2 | CS-1248.1 | product | `clockspeed/solve/quantity.py`, `tests/solve/test_quantity.py` | none | none | - | - | - | - |
-| W1 | 1 | W1-G1-S1 | CS-1439 part 1 | process | `clockspeed/surface/web/` `panel_diagnostics`, `tests/surface/` `test-panel_diagnostics` | none | none | - | - | wave per its leaf | H003 1/31 |
+| W0a | 2 | W0-G2-S2 | CS-1248.1 | product | `clockspeed/solve/` `quantity`; `tests/solve/` `test-quantity` | none | none | - | - | - | - |
+| W1 | 1 | W1-G1-S1 | CS-1439 part 1 | process | `clockspeed/surface/web/` `panel_diagnostics`; `tests/surface/` `test-panel_diagnostics` | none | none | - | - | wave per its leaf | H003 1/31 |
 | W1 | 1 | W1-G1-S2 | CS-1401 | product | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase5.md` | none | - | v0.3.0 | - | H013 1/17; H029 1/9; H036 1/9; H052 2/8; H079 1/5 |
 | W1 | 2 | W1-G2-S1 | CS-1439 part 2 | process | none | none | none | - | - | wave per its leaf | H001 2/45; H003 2/31; H007 2/25; H012 1/19; H016 1/15 |
 | W1 | 2 | W1-G2-S2 | CS-454.1 | product | none | none | none | - | - | - | H031 1/9; H038 1/9; H040 2/9 |
-| W1 | 3 | W1-G3-S1 | CS-1261 | product | `docs/adr/` `NNNN-cs-1261-SLUG` | none | none | - | - | - | H007 3/25; H012 2/19; H032 1/9; H050 1/8; H119 1/4 |
+| W1 | 3 | W1-G3-S1 | CS-1261 | product | `docs/adr/` `0027-cs-1261-local-api-hardening` | none | none | - | - | - | H007 3/25; H012 2/19; H032 1/9; H050 1/8; H119 1/4 |
 | W1 | 3 | W1-G3-S2 | CS-1410 | process | none | none | none | - | - | - | H043 1/8 |
 | W1 | lane | W1-L01 | CS-887 | product | `tests/surface/` `test-exit_codes` | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md`, `tools/provenance.tsv` | `docs/OPERATIONS.md` | lane gap | - | - | H007 4/25; H012 3/19; H020 2/13; H021 1/12 |
 | W2 | 1 | W2-G1-S1 | CS-1439 part 3 | process | none | none | none | - | - | - | H088 1/5; H089 1/5 |
-| W2 | 1 | W2-G1-S2 | CS-936.1 | process | `tests/` `test-scrub_era_refs`, `tools/` `scrub_era_refs` | none | none | - | - | - | - |
+| W2 | 1 | W2-G1-S2 | CS-936.1 | process | `tests/` `test-scrub_era_refs`; `tools/` `scrub_era_refs` | none | none | - | - | - | - |
 | W2 | 2 | W2-G2-S1 | CS-1204 | product | none | none | none | - | v0.2.0 | - | H003 3/31; H009 1/21; H032 2/9; H033 1/9; H045 1/8; H062 1/7 |
 | W2 | 2 | W2-G2-S2 | CS-454.2 | product | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | - | - | - | H049 1/8 |
 | W2 | 3 | W2-G3-S1 | CS-909 | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | - | H020 3/13 |
 | W2 | 3 | W2-G3-S2 | CS-1243.4 | product | `docs/adr/` `NNNN-the-degraded-d1-siting-form` | `BACKLOG.md`, `docs/adr/README.md`, `docs/item_notes/phase5.md`, `tools/provenance.tsv` | `BOOTSTRAP.md` | - | - | - | - |
 | W2 | filing | W2-F01 | CS-1048 extension unfiled | product | none | `docs/item_notes/phase5.md`, `docs/LEDGER.md` | none | - | - | - | - |
-| W3 | 1 | W3-G1-S1 | CS-619.1 | process | `shell/lib/` `persist`, `shell/test/` `persist.test` | `tools/provenance.tsv` | none | - | - | - | H002 1/37; H005 1/26 |
+| W3 | 1 | W3-G1-S1 | CS-619.1 | process | `shell/lib/` `persist`; `shell/test/` `persist.test` | `tools/provenance.tsv` | none | - | - | - | H002 1/37; H005 1/26 |
 | W3 | 1 | W3-G1-S2 | CS-1438 | product | none | `ROADMAP.md`, `THIRD_PARTY.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | v0.2.0 | - | - |
 | W3 | 2 | W3-G2-S1 | CS-1437 part 1 | product | `tests/surface/` `test-admission` | none | none | - | - | - | H007 5/25; H012 4/19; H045 2/8 |
 | W3 | 2 | W3-G2-S2 | CS-1440 part 1 | product | `tests/data/` `test-data_root` | none | none | - | v0.2.0 | - | H031 2/9; H038 2/9; H040 3/9; H044 2/8; H057 1/7; H060 1/7; H063 1/6 |
 | W3 | 3 | W3-G3-S1 | CS-1436 part 1 | product | `tests/surface/` `test-web_palette` | `config/lane_scopes.json`, `tools/provenance.tsv` | none | - | - | - | H004 1/26 |
-| W3 | 3 | W3-G3-S2 | CS-1048.1 | product | `clockspeed/advisor/` `annotations`, `tests/advisor/` `test-annotations` | none | none | - | - | extension filed by W2 | - |
+| W3 | 3 | W3-G3-S2 | CS-1048.1 | product | `clockspeed/advisor/` `annotations`; `tests/advisor/` `test-annotations` | none | none | - | - | extension filed by W2 | - |
 | W3 | filing | W3-F01 | CS-1058 extension unfiled | product | none | `docs/item_notes/phase5.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W3 | filing | W3-F02 | CS-1058 child row unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase5.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W3 | lane | W3-L01 | CS-618 | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | lane gap | - | - | H020 4/13 |
@@ -89,7 +90,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W4 | filing | W4-F01 | U-077 unfiled | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W5 | 1 | W5-G1-S1 | CS-1434 part 2 | product | none | none | none | - | v0.3.0 | - | H001 4/45; H003 5/31; H004 3/26; H071 3/6; H073 2/6; H088 2/5; H089 2/5; H115 2/4 |
 | W5 | 1 | W5-G1-S2 | CS-1440 part 3 | product | none | `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `tools/provenance.tsv` | `docs/OPERATIONS.md` | - | v0.2.0 | - | H098 1/4; H099 1/4 |
-| W5 | 2 | W5-G2-S1 | CS-1435 part 1 | product | `scripts/` `make_icon`, `tests/` `test-make_icon`, `shell/lib/` `identity`, `shell/test/` `identity.test` | none | none | - | v0.2.0 | - | - |
+| W5 | 2 | W5-G2-S1 | CS-1435 part 1 | product | `scripts/` `make_icon`; `tests/` `test-make_icon`; `shell/lib/` `identity`; `shell/test/` `identity.test` | none | none | - | v0.2.0 | - | - |
 | W5 | 2 | W5-G2-S2 | U-077.1 unfiled | process | none | `BACKLOG.md` | `docs/OPERATIONS.md` | - | - | filed by W4 | H001 5/45; H008 1/23 |
 | W5 | 3 | W5-G3-S1 | CS-1058.4 | product | none | none | none | - | - | extension filed by W3; child row filed by W3 | H014 3/16; H015 3/15 |
 | W5 | 3 | W5-G3-S2 | CS-1427 part 5 | product | none | none | none | - | - | - | H092 1/4 |
@@ -97,7 +98,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W5 | filing | W5-F02 | U-073 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W5 | filing | W5-F03 | U-115 parts 1 to 3 unfiled | product | none | `ROADMAP.md`, `docs/item_notes/phase7.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W6 | 1 | W6-G1-S1 | CS-1435 part 2 | product | none | none | none | - | v0.2.0 | - | H002 2/37; H005 2/26; H026 1/10; H035 1/9; H098 2/4; H099 2/4 |
-| W6 | 1 | W6-G1-S2 | U-073.1 unfiled | product | `clockspeed/surface/web/` `panel_play`, `tests/surface/` `test-panel_play` | `tools/provenance.tsv` | none | - | v0.3.0 | filed by W5 | H001 6/45; H003 6/31; H007 6/25; H012 7/19; H016 3/15; H025 1/10; H028 1/10 |
+| W6 | 1 | W6-G1-S2 | U-073.1 unfiled | product | `clockspeed/surface/web/` `panel_play`; `tests/surface/` `test-panel_play` | `tools/provenance.tsv` | none | - | v0.3.0 | filed by W5 | H001 6/45; H003 6/31; H007 6/25; H012 7/19; H016 3/15; H025 1/10; H028 1/10 |
 | W6 | 2 | W6-G2-S1 | CS-1435 part 3 | product | none | none | `docs/OPERATIONS.md` | - | v0.2.0 | - | - |
 | W6 | 2 | W6-G2-S2 | U-073.4 unfiled | product | none | `tools/provenance.tsv` | none | - | v0.3.0 | filed by W5 | H001 7/45; H003 7/31; H007 7/25; H012 8/19; H016 4/15; H025 2/10; H028 2/10 |
 | W6 | 3 | W6-G3-S1 | U-060.1 unfiled | product | none | none | none | - | v0.2.0 | filed by W5 | H005 3/26; H047 1/8; H068 1/6 |
@@ -107,7 +108,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W7 | 1 | W7-G1-S1 | U-073.2 unfiled | product | none | none | none | - | v0.3.0 | filed by W5 | H001 8/45; H004 4/26; H025 3/10; H028 3/10 |
 | W7 | 1 | W7-G1-S2 | U-060.2 unfiled | product | none | none | none | - | v0.2.0 | filed by W5 | H047 2/8; H068 2/6 |
 | W7 | 2 | W7-G2-S1 | CS-1260.1 | product | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase6.md` | none | - | - | child row filed by W6 | H001 9/45; H004 5/26 |
-| W7 | 2 | W7-G2-S2 | CS-1252.1 | product | `clockspeed/audit/` `freshness`, `tests/audit/` `test-freshness`, `tests/surface/` `test-freshness` | none | none | - | v0.3.0 | - | H009 2/21; H013 2/17; H032 4/9; H036 2/9; H050 3/8; H054 1/7; H078 1/5; H091 1/4 |
+| W7 | 2 | W7-G2-S2 | CS-1252.1 | product | `clockspeed/audit/` `freshness`; `tests/audit/` `test-freshness`; `tests/surface/` `test-freshness` | none | none | - | v0.3.0 | - | H009 2/21; H013 2/17; H032 4/9; H036 2/9; H050 3/8; H054 1/7; H078 1/5; H091 1/4 |
 | W7 | 3 | W7-G3-S1 | U-073.3 unfiled | product | none | `BACKLOG.md` | none | - | v0.3.0 | filed by W5 | H001 10/45; H073 3/6 |
 | W7 | 3 | W7-G3-S2 | CS-623 | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | - | H002 3/37; H026 2/10; H046 1/8; H047 3/8 |
 | W7 | filing | W7-F01 | U-061 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
@@ -115,7 +116,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W7 | filing | W7-F03 | U-117 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W8 | 1 | W8-G1-S1 | U-116 unfiled | product | `tests/surface/` `test-registry_provider_memo` | `BACKLOG.md`, `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | filed by W7 | H009 3/21; H021 3/12; H053 2/8; H087 1/5 |
 | W8 | 1 | W8-G1-S2 | CS-1260.2 | product | none | none | none | - | - | child row filed by W6 | H001 11/45; H004 6/26; H006 1/26; H111 1/4 |
-| W8 | 2 | W8-G2-S1 | U-117 unfiled | product | `clockspeed/surface/` `priority`, `tests/surface/` `test-priority` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | - | filed by W7 | H021 4/12; H042 2/9; H087 2/5 |
+| W8 | 2 | W8-G2-S1 | U-117 unfiled | product | `clockspeed/surface/` `priority`; `tests/surface/` `test-priority` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | - | filed by W7 | H021 4/12; H042 2/9; H087 2/5 |
 | W8 | 2 | W8-G2-S2 | U-060.3 unfiled | product | none | none | none | - | v0.2.0 | filed by W5 | H002 4/37; H005 4/26 |
 | W8 | 3 | W8-G3-S1 | U-060.4 unfiled | product | none | none | `docs/OPERATIONS.md` | - | v0.2.0 | filed by W5 | - |
 | W8 | 3 | W8-G3-S2 | U-061.1 unfiled | product | none | none | none | - | v0.2.0 | filed by W7 | H060 2/7; H120 1/4 |
@@ -124,7 +125,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W9 | 1 | W9-G1-S1 | CS-1252.2 | product | none | none | none | - | v0.3.0 | - | H018 1/13; H024 1/11; H045 3/8; H062 2/7; H093 1/4; H094 1/4; H110 2/4; H113 1/4; H114 2/4 |
 | W9 | 1 | W9-G1-S2 | U-074.1 unfiled | product | `tests/surface/` `test-panel_repaint` | `tools/provenance.tsv` | none | - | v0.3.0 | filed by W8 | H001 12/45; H003 8/31; H084 2/5; H085 2/5 |
 | W9 | 2 | W9-G2-S1 | U-115.2 unfiled | product | `tests/surface/` `test-world_provider_reload` | none | none | - | v0.2.0 | filed by W5 | H009 4/21 |
-| W9 | 2 | W9-G2-S2 | U-097.1 unfiled | product | `shell/lib/` `guard`, `shell/test/` `guard.test` | `tools/provenance.tsv` | none | - | - | filed by W8 | H002 5/37 |
+| W9 | 2 | W9-G2-S2 | U-097.1 unfiled | product | `shell/lib/` `guard`; `shell/test/` `guard.test` | `tools/provenance.tsv` | none | - | - | filed by W8 | H002 5/37 |
 | W9 | 3 | W9-G3-S1 | CS-622 | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | - | H002 6/37 |
 | W9 | 3 | W9-G3-S2 | CS-1130.1 | process | none | none | none | - | - | - | H090 1/5 |
 | W9 | filing | W9-F01 | CS-1251 extension unfiled | product | none | `docs/item_notes/phase5.md`, `docs/LEDGER.md` | none | - | - | - | - |
@@ -148,13 +149,13 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W12 | 2 | W12-G2-S1 | CS-1432 part 1 | product | none | `docs/LEDGER.md` | none | - | v0.3.0 | - | H053 3/8 |
 | W12 | 2 | W12-G2-S2 | U-098.1 unfiled | product | none | none | none | - | - | filed by W11 | H026 3/10; H035 2/9 |
 | W12 | 3 | W12-G3-S1 | U-098.2 unfiled | product | none | none | none | - | - | filed by W11 | - |
-| W12 | 3 | W12-G3-S2 | U-059.1 unfiled | product | `clockspeed/surface/` `owner`, `tests/surface/` `test-owner` | `tools/provenance.tsv` | none | - | - | filed by W11 | H007 8/25; H021 7/12; H042 3/9 |
+| W12 | 3 | W12-G3-S2 | U-059.1 unfiled | product | `clockspeed/surface/` `owner`; `tests/surface/` `test-owner` | `tools/provenance.tsv` | none | - | - | filed by W11 | H007 8/25; H021 7/12; H042 3/9 |
 | W12 | filing | W12-F01 | U-101 unfiled | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W12 | filing | W12-F02 | U-119 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
-| W13 | 1 | W13-G1-S1 | CS-1432 part 2 | product | `clockspeed/surface/` `watch`, `tests/surface/` `test-watch` | none | none | - | v0.3.0 | - | - |
+| W13 | 1 | W13-G1-S1 | CS-1432 part 2 | product | `clockspeed/surface/` `watch`; `tests/surface/` `test-watch` | none | none | - | v0.3.0 | - | - |
 | W13 | 1 | W13-G1-S2 | U-119 unfiled | product | `tests/surface/` `test-start_purge` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | - | filed by W12 | H014 4/16; H015 5/15; H021 8/12; H040 5/9; H044 4/8; H069 2/6 |
-| W13 | 2 | W13-G2-S1 | CS-1432 part 3 | product | `clockspeed/surface/api/` `events`, `tests/surface/` `test-events` | none | none | - | v0.3.0 | - | H007 9/25; H012 9/19 |
-| W13 | 2 | W13-G2-S2 | U-101.1 unfiled | process | `config/` `runtime_pins`, `tests/` `test-runtime_pins` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W12 | H076 1/5; H122 1/4 |
+| W13 | 2 | W13-G2-S1 | CS-1432 part 3 | product | `clockspeed/surface/api/` `events`; `tests/surface/` `test-events` | none | none | - | v0.3.0 | - | H007 9/25; H012 9/19 |
+| W13 | 2 | W13-G2-S2 | U-101.1 unfiled | process | `config/` `runtime_pins`; `tests/` `test-runtime_pins` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W12 | H076 1/5; H122 1/4 |
 | W13 | 3 | W13-G3-S1 | CS-1432 part 4 | product | none | none | none | - | v0.3.0 | - | H021 9/12 |
 | W13 | 3 | W13-G3-S2 | CS-1142 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4-followups-1000.md` | none | - | - | - | H052 3/8 |
 | W13 | filing | W13-F01 | U-002 unfiled | process | none | `ROADMAP.md`, `docs/item_notes/phase7.md`, `docs/LEDGER.md` | none | - | - | - | - |
@@ -162,14 +163,14 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W13 | filing | W13-F03 | CS-1258 extension unfiled | product | none | `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W13 | lane | W13-L01 | CS-603 | process | none | none | none | lane gap | - | - | - |
 | W14 | 1 | W14-G1-S1 | U-098.3 unfiled | product | none | none | none | - | - | filed by W11 | H002 10/37; H005 7/26 |
-| W14 | 1 | W14-G1-S2 | U-002.1 unfiled | process | `installer/__init__`, `installer/manifest`, `tests/` `installer/test-manifest`, `tools/` `release_build`, `tests/` `packaging/test-release_build`, `tests/` `installer/__init__`, `tests/` `packaging/__init__` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W13 | H077 1/5; H103 1/4 |
+| W14 | 1 | W14-G1-S2 | U-002.1 unfiled | process | `installer/__init__`; `installer/manifest`; `tests/` `installer/test-manifest`; `tools/` `release_build`; `tests/` `packaging/test-release_build`; `tests/` `installer/__init__`; `tests/` `packaging/__init__` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W13 | H077 1/5; H103 1/4 |
 | W14 | 2 | W14-G2-S1 | U-091.1 unfiled | product | none | none | none | - | v0.2.0 | filed by W13 | H119 2/4 |
 | W14 | 2 | W14-G2-S2 | U-098.4 unfiled | product | none | `BACKLOG.md`, `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | - | filed by W11 | H002 11/37; H005 8/26; H026 4/10; H035 3/9 |
 | W14 | 3 | W14-G3-S1 | U-098.5 unfiled | product | none | `BACKLOG.md`, `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | - | filed by W11 | H002 12/37; H005 9/26; H026 5/10; H035 4/9 |
 | W14 | 3 | W14-G3-S2 | CS-1258.1 | product | none | none | none | - | - | extension filed by W13 | H001 14/45; H004 8/26 |
 | W15 | 1 | W15-G1-S1 | CS-1432 part 5 | product | `tests/surface/` `test-freshness_strip` | none | none | - | v0.3.0 | - | H001 15/45; H003 12/31; H004 9/26; H016 6/15 |
-| W15 | 1 | W15-G1-S2 | U-002.2 unfiled | process | `tests/` `packaging/test-artifact_contents`, `tests/` `packaging/test-artifact_boot` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W13 | H077 2/5 |
-| W15 | 2 | W15-G2-S1 | U-091.2 unfiled | product | `shell/lib/` `mint`, `shell/test/` `mint.test` | none | none | - | v0.2.0 | filed by W13 | H002 13/37; H005 10/26; H046 2/8; H055 1/7 |
+| W15 | 1 | W15-G1-S2 | U-002.2 unfiled | process | `tests/` `packaging/test-artifact_contents`; `tests/` `packaging/test-artifact_boot` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W13 | H077 2/5 |
+| W15 | 2 | W15-G2-S1 | U-091.2 unfiled | product | `shell/lib/` `mint`; `shell/test/` `mint.test` | none | none | - | v0.2.0 | filed by W13 | H002 13/37; H005 10/26; H046 2/8; H055 1/7 |
 | W15 | 2 | W15-G2-S2 | U-101.2 unfiled | process | `tools/` `runtime_pins` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W12 | H122 2/4 |
 | W15 | 3 | W15-G3-S1 | U-002.3 unfiled | process | `tests/` `test-version_owner` | `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `tools/provenance.tsv` | `docs/OPERATIONS.md` | - | v0.2.0 | filed by W13 | - |
 | W15 | 3 | W15-G3-S2 | CS-608 | process | none | none | none | - | - | - | H001 16/45 |
@@ -178,58 +179,58 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W16 | 1 | W16-G1-S2 | CS-1432 part 6 | product | none | none | none | - | v0.3.0 | - | H001 17/45; H003 13/31; H004 10/26; H006 3/26; H010 2/21; H016 7/15; H025 5/10; H028 5/10 |
 | W16 | 2 | W16-G2-S1 | U-091.3 unfiled | product | `docs/adr/` `NNNN-certificate-lifecycle-and-the-per-start-token` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/adr/README.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | v0.2.0 | filed by W13 | H043 2/8; H121 1/4 |
 | W16 | 2 | W16-G2-S2 | U-101.3 unfiled | process | `docs/adr/` `NNNN-runtime-pins` | `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `docs/adr/README.md`, `tools/provenance.tsv` | none | - | v0.2.0 | filed by W12 | H076 2/5; H122 3/4 |
-| W16 | 3 | W16-G3-S1 | U-102.1 unfiled | product | `installer/__main__`, `installer/cli`, `tests/` `installer/test-cli` | `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 1/9; H076 3/5; H077 3/5; H103 2/4 |
+| W16 | 3 | W16-G3-S1 | U-102.1 unfiled | product | `installer/__main__`; `installer/cli`; `tests/` `installer/test-cli` | `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 1/9; H076 3/5; H077 3/5; H103 2/4 |
 | W16 | 3 | W16-G3-S2 | CS-1258.2 | product | none | none | none | - | - | extension filed by W13 | H001 18/45; H003 14/31; H016 8/15; H088 3/5; H089 3/5 |
 | W16 | filing | W16-F01 | U-099 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W16 | lane | W16-L01 | CS-468 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | lane gap | - | - | H038 3/9 |
-| W17 | 1 | W17-G1-S1 | CS-619.3 | process | `shell/lib/` `wiring`, `shell/test/` `wiring.test` | `tools/provenance.tsv` | none | - | - | - | H002 15/37; H005 12/26 |
+| W17 | 1 | W17-G1-S1 | CS-619.3 | process | `shell/lib/` `wiring`; `shell/test/` `wiring.test` | `tools/provenance.tsv` | none | - | - | - | H002 15/37; H005 12/26 |
 | W17 | 1 | W17-G1-S2 | CS-1432 part 7 | product | `tests/surface/` `test-event_focus` | `docs/LEDGER.md` | `docs/hud_doctrine.md` | - | v0.3.0 | - | H001 19/45; H003 15/31 |
 | W17 | 2 | W17-G2-S1 | CS-619.4 | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | - | - |
 | W17 | 2 | W17-G2-S2 | CS-1432 part 8 | product | none | `ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase5.md`, `docs/item_notes/phase6.md` | none | - | v0.3.0 | - | H043 3/8 |
-| W17 | 3 | W17-G3-S1 | U-099.1 unfiled | product | `installer/fuses`, `tests/` `installer/test-fuses` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W16 | - |
+| W17 | 3 | W17-G3-S1 | U-099.1 unfiled | product | `installer/fuses`; `tests/` `installer/test-fuses` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W16 | - |
 | W17 | 3 | W17-G3-S2 | U-102.7 unfiled | product | none | `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 2/9; H076 4/5; H077 4/5; H103 3/4 |
 | W18 | 1 | W18-G1-S1 | U-159 not filed | product | none | none | none | - | - | - | - |
 | W18 | 1 | W18-G1-S2 | U-099.2 unfiled | product | none | none | none | - | v0.2.0 | filed by W16 | - |
-| W18 | 2 | W18-G2-S1 | U-102.2 unfiled | product | `installer/paths`, `tests/` `installer/test-paths`, `installer/marker`, `tests/` `installer/test-marker` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | - |
+| W18 | 2 | W18-G2-S1 | U-102.2 unfiled | product | `installer/paths`; `tests/` `installer/test-paths`; `installer/marker`; `tests/` `installer/test-marker` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | - |
 | W18 | 2 | W18-G2-S2 | U-059.2 unfiled | product | none | none | none | - | - | filed by W11 | H002 16/37; H005 13/26; H046 4/8; H055 3/7 |
 | W18 | 3 | W18-G3-S1 | CS-612 | process | none | none | none | - | - | - | H119 3/4 |
 | W18 | 3 | W18-G3-S2 | CS-464 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | - | - | - | - |
-| W19 | 1 | W19-G1-S1 | U-102.3 unfiled | product | `installer/runtimes`, `tests/` `installer/test-runtimes`, `installer/engine`, `tests/` `installer/test-engine` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 3/9; H067 1/6 |
+| W19 | 1 | W19-G1-S1 | U-102.3 unfiled | product | `installer/runtimes`; `tests/` `installer/test-runtimes`; `installer/engine`; `tests/` `installer/test-engine` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 3/9; H067 1/6 |
 | W19 | 1 | W19-G1-S2 | U-059.3 unfiled | product | `tests/shell/` `test-owner_pipe` | `tools/provenance.tsv` | none | - | - | filed by W11 | - |
-| W19 | 2 | W19-G2-S1 | U-102.4 unfiled | product | `installer/selftest`, `tests/` `installer/test-selftest`, `installer/report`, `tests/` `installer/test-report` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 4/9; H067 2/6 |
+| W19 | 2 | W19-G2-S1 | U-102.4 unfiled | product | `installer/selftest`; `tests/` `installer/test-selftest`; `installer/report`; `tests/` `installer/test-report` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 4/9; H067 2/6 |
 | W19 | 2 | W19-G2-S2 | U-059.4 unfiled | product | `docs/adr/` `NNNN-the-shell-supervises-for-the-whole-session` | `docs/adr/README.md`, `tools/provenance.tsv` | `docs/OPERATIONS.md` | - | - | filed by W11 | - |
 | W19 | 3 | W19-G3-S1 | CS-876 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4-followups-850.md` | none | - | - | - | H039 1/9 |
 | W19 | 3 | W19-G3-S2 | CS-457 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | - | - | - | H011 3/20 |
 | W19 | filing | W19-F01 | U-062 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W19 | filing | W19-F02 | U-134 unfiled | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W19 | filing | W19-F03 | U-149 unfiled | process | none | `ROADMAP.md`, `docs/item_notes/phase7.md`, `docs/LEDGER.md` | none | - | - | - | - |
-| W20 | 1 | W20-G1-S1 | U-134 unfiled | process | `tools/` `release_notes`, `tests/` `test-release_notes` | `BACKLOG.md`, `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | v0.2.0 | filed by W19 | - |
-| W20 | 1 | W20-G1-S2 | U-102.5 unfiled | product | `installer/bootstrap/install`, `installer/bootstrap/install`, `installer/bootstrap/mint`, `installer/mint`, `tests/` `installer/test-mint`, `tests/` `installer/test-bootstrap_text` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 5/9; H067 3/6 |
+| W20 | 1 | W20-G1-S1 | U-134 unfiled | process | `tools/` `release_notes`; `tests/` `test-release_notes` | `BACKLOG.md`, `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | v0.2.0 | filed by W19 | - |
+| W20 | 1 | W20-G1-S2 | U-102.5 unfiled | product | `installer/bootstrap/install`; `installer/bootstrap/install`; `installer/bootstrap/mint`; `installer/mint`; `tests/` `installer/test-mint`; `tests/` `installer/test-bootstrap_text` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 5/9; H067 3/6 |
 | W20 | 2 | W20-G2-S1 | U-102.8 unfiled | product | none | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W15 | H034 6/9; H067 4/6 |
 | W20 | 2 | W20-G2-S2 | U-062.1 unfiled | product | none | none | none | - | v0.2.0 | filed by W19 | H046 5/8; H047 5/8; H055 4/7; H068 4/6 |
 | W20 | 3 | W20-G3-S1 | CS-1436 part 2 | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | - | - |
-| W20 | 3 | W20-G3-S2 | CS-1430 | product | `clockspeed/progress/` `delta`, `tests/progress/` `test-delta` | `docs/ARCHITECTURE.md`, `tools/provenance.tsv` | none | - | - | - | - |
+| W20 | 3 | W20-G3-S2 | CS-1430 | product | `clockspeed/progress/` `delta`; `tests/progress/` `test-delta` | `docs/ARCHITECTURE.md`, `tools/provenance.tsv` | none | - | - | - | - |
 | W20 | filing | W20-F01 | U-125 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W20 | filing | W20-F02 | U-132 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W20 | filing | W20-F03 | CS-1398 extension unfiled | product | none | `docs/item_notes/phase5.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W20 | lane | W20-L01 | CS-808 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4-followups.md` | none | lane gap | - | - | H049 2/8; H104 1/4 |
 | W21 | 1 | W21-G1-S1 | U-102.6 unfiled | product | `docs/adr/` `NNNN-the-installer` | `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `docs/adr/README.md`, `tools/provenance.tsv` | `docs/OPERATIONS.md` | - | v0.2.0 | filed by W15 | H043 4/8; H121 2/4 |
 | W21 | 1 | W21-G1-S2 | CS-1248.2 | product | none | none | none | - | - | - | - |
-| W21 | 2 | W21-G2-S1 | U-132.1 unfiled | product | `shell/lib/` `launch`, `shell/test/` `launch.test`, `shell/` `launcher/main` | none | none | - | v0.2.0 | filed by W20 | H002 17/37 |
+| W21 | 2 | W21-G2-S1 | U-132.1 unfiled | product | `shell/lib/` `launch`; `shell/test/` `launch.test`; `shell/` `launcher/main` | none | none | - | v0.2.0 | filed by W20 | H002 17/37 |
 | W21 | 2 | W21-G2-S2 | CS-1398.1 | product | none | `config/lane_scopes.json`, `docs/item_notes/phase5.md` | none | - | - | extension filed by W20 | H029 2/9; H075 1/5; H079 2/5; H080 1/5 |
-| W21 | 3 | W21-G3-S1 | U-125.1 unfiled | product | `clockspeed/surface/` `oplog`, `tests/surface/` `test-oplog` | `tools/provenance.tsv` | none | - | - | filed by W20 | H007 10/25; H096 1/4 |
+| W21 | 3 | W21-G3-S1 | U-125.1 unfiled | product | `clockspeed/surface/` `oplog`; `tests/surface/` `test-oplog` | `tools/provenance.tsv` | none | - | - | filed by W20 | H007 10/25; H096 1/4 |
 | W21 | 3 | W21-G3-S2 | CS-916.1 | product | none | none | none | - | - | - | H086 2/5; H092 2/4 |
 | W22 | 1 | W22-G1-S1 | U-132.2 unfiled | product | `shell/` `launcher/package` | none | `docs/OPERATIONS.md` | - | v0.2.0 | filed by W20 | H002 18/37; H046 6/8; H055 5/7 |
-| W22 | 1 | W22-G1-S2 | U-062.2 unfiled | product | `shell/lib/` `lifecycle`, `shell/test/` `lifecycle.test` | none | none | - | v0.2.0 | filed by W19 | - |
+| W22 | 1 | W22-G1-S2 | U-062.2 unfiled | product | `shell/lib/` `lifecycle`; `shell/test/` `lifecycle.test` | none | none | - | v0.2.0 | filed by W19 | - |
 | W22 | 2 | W22-G2-S1 | U-132.3 unfiled | product | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | v0.2.0 | filed by W20 | H002 19/37; H005 14/26; H067 5/6 |
 | W22 | 2 | W22-G2-S2 | CS-1248.3 | product | none | none | none | - | - | - | H032 5/9; H050 4/8; H075 2/5 |
 | W22 | 3 | W22-G3-S1 | U-099.3 unfiled | product | none | `BACKLOG.md`, `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | - | filed by W16 | H002 20/37 |
 | W22 | 3 | W22-G3-S2 | CS-609 | process | none | none | none | - | - | - | H061 1/7 |
 | W22 | filing | W22-F01 | U-133 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
-| W23 | 1 | W23-G1-S1 | U-133.1 unfiled | product | `installer/shellint`, `tests/` `installer/test-shellint`, `installer/procs`, `tests/` `installer/test-procs` | none | none | - | v0.2.0 | filed by W22 | - |
+| W23 | 1 | W23-G1-S1 | U-133.1 unfiled | product | `installer/shellint`; `tests/` `installer/test-shellint`; `installer/procs`; `tests/` `installer/test-procs` | none | none | - | v0.2.0 | filed by W22 | - |
 | W23 | 1 | W23-G1-S2 | U-062.3 unfiled | product | none | `docs/adr/README.md` | `docs/OPERATIONS.md` | - | v0.2.0 | filed by W19 | H002 21/37; H005 15/26; H046 7/8; H053 4/8; H055 6/7 |
-| W23 | 2 | W23-G2-S1 | U-133.2 unfiled | product | `installer/uninstall`, `tests/` `installer/test-uninstall`, `installer/recycle` | none | none | - | v0.2.0 | filed by W22 | - |
-| W23 | 2 | W23-G2-S2 | CS-1046.1 | product | `clockspeed/surface/api/` `audit`, `tests/surface/` `test-audit`, `clockspeed/surface/api/` `plan`, `tests/surface/` `test-plan` | `tools/provenance.tsv` | none | - | v0.4.0 | - | H017 2/15 |
+| W23 | 2 | W23-G2-S1 | U-133.2 unfiled | product | `installer/uninstall`; `tests/` `installer/test-uninstall`; `installer/recycle` | none | none | - | v0.2.0 | filed by W22 | - |
+| W23 | 2 | W23-G2-S2 | CS-1046.1 | product | `clockspeed/surface/api/` `audit`; `tests/surface/` `test-audit`; `clockspeed/surface/api/` `plan`; `tests/surface/` `test-plan` | `tools/provenance.tsv` | none | - | v0.4.0 | - | H017 2/15 |
 | W23 | 3 | W23-G3-S1 | CS-611 | process | none | `docs/item_notes/phase6.md` | none | - | - | - | H007 11/25; H012 10/19 |
 | W23 | 3 | W23-G3-S2 | CS-620 | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | `docs/OPERATIONS.md` | - | - | - | H043 5/8 |
 | W23 | filing | W23-F01 | U-126 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
@@ -242,7 +243,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W24 | 3 | W24-G3-S2 | CS-915 | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | - | - | H001 21/45; H008 4/23 |
 | W24 | filing | W24-F01 | U-004 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W25 | 1 | W25-G1-S1 | CS-1248.5 | product | none | none | none | - | - | - | H018 2/13; H027 1/10; H065 1/6 |
-| W25 | 1 | W25-G1-S2 | U-004.1 unfiled | product | `installer/update`, `tests/` `installer/test-update`, `installer/net`, `tests/` `packaging/test-update_requests` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W24 | - |
+| W25 | 1 | W25-G1-S2 | U-004.1 unfiled | product | `installer/update`; `tests/` `installer/test-update`; `installer/net`; `tests/` `packaging/test-update_requests` | `tools/provenance.tsv` | none | - | v0.2.0 | filed by W24 | - |
 | W25 | 2 | W25-G2-S1 | CS-1248.6 | product | none | none | none | - | - | - | H097 1/4 |
 | W25 | 2 | W25-G2-S2 | U-004.2 unfiled | product | none | none | none | - | v0.2.0 | filed by W24 | H034 8/9; H067 6/6 |
 | W25 | 3 | W25-G3-S1 | CS-1046.4 | product | none | `ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md` | none | - | v0.4.0 | - | H020 6/13; H043 6/8 |
@@ -258,10 +259,10 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W26 | filing | W26-F01 | U-135 unfiled | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W26 | filing | W26-F02 | U-136 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W26 | lane | W26-L01 | CS-483 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4.md` | none | lane gap | - | - | H105 2/4 |
-| W27 | 1 | W27-G1-S1 | U-135.1 unfiled | process | `tools/` `release_stage`, `tests/` `test-release_stage` | none | none | - | v0.2.0 | filed by W26 | - |
+| W27 | 1 | W27-G1-S1 | U-135.1 unfiled | process | `tools/` `release_stage`; `tests/` `test-release_stage` | none | none | - | v0.2.0 | filed by W26 | - |
 | W27 | 1 | W27-G1-S2 | CS-1256.2 | product | none | none | none | - | - | - | H018 3/13; H085 4/5; H086 3/5; H093 2/4; H095 2/4 |
-| W27 | 2 | W27-G2-S1 | U-135.2 unfiled | process | `.github/workflows/` `release`, `tests/` `test-release_workflow` | none | none | - | v0.2.0 | filed by W26 | - |
-| W27 | 2 | W27-G2-S2 | U-136.1 unfiled | product | `installer/migrate`, `tests/` `installer/test-migrate` | none | none | - | v0.2.0 | filed by W26 | H034 9/9 |
+| W27 | 2 | W27-G2-S1 | U-135.2 unfiled | process | `.github/workflows/` `release`; `tests/` `test-release_workflow` | none | none | - | v0.2.0 | filed by W26 | - |
+| W27 | 2 | W27-G2-S2 | U-136.1 unfiled | product | `installer/migrate`; `tests/` `installer/test-migrate` | none | none | - | v0.2.0 | filed by W26 | H034 9/9 |
 | W27 | 3 | W27-G3-S1 | U-135.3 unfiled | process | none | none | none | - | v0.2.0 | filed by W26 | - |
 | W27 | 3 | W27-G3-S2 | U-136.2 unfiled | product | `tests/` `installer/test-first_run` | `docs/LEDGER.md` | `docs/OPERATIONS.md` | - | v0.2.0 | filed by W26 | - |
 | W27 | filing | W27-F01 | U-103 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
@@ -274,7 +275,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W28 | filing | W28-F01 | CS-1257 extension unfiled | product | none | `ROADMAP.md`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W29 | 1 | W29-G1-S1 | CS-1420 part 1 | product | none | none | none | - | - | - | H086 4/5; H092 3/4 |
 | W29 | 1 | W29-G1-S2 | CS-1257.1 | product | none | `docs/LEDGER.md` | none | - | v0.3.0 | extension filed by W28 | H057 3/7; H063 3/6 |
-| W29 | 2 | W29-G2-S1 | CS-1420 part 2 | product | `clockspeed/solve/` `staging`, `tests/solve/` `test-staging` | none | none | - | - | - | H107 1/4 |
+| W29 | 2 | W29-G2-S1 | CS-1420 part 2 | product | `clockspeed/solve/` `staging`; `tests/solve/` `test-staging` | none | none | - | - | - | H107 1/4 |
 | W29 | 2 | W29-G2-S2 | CS-1257.2 | product | `tests/advisor/` `test-standing_statement` | none | none | - | v0.3.0 | extension filed by W28 | H013 5/17 |
 | W29 | 3 | W29-G3-S1 | CS-1420 part 3 | product | none | none | none | - | - | - | - |
 | W29 | 3 | W29-G3-S2 | CS-1257.3 | product | none | none | none | - | v0.3.0 | extension filed by W28 | H009 10/21; H017 5/15; H018 4/13; H024 2/11; H072 2/6 |
@@ -287,7 +288,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W30 | 3 | W30-G3-S2 | CS-1420 part 6 | product | none | none | none | - | - | - | H017 6/15; H030 2/9; H037 2/9; H056 2/7; H101 2/4 |
 | W30 | filing | W30-F01 | U-079 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W30 | lane | W30-L01 | CS-849 | process | `tests/` `test-work_directory_left_absent` | `tools/provenance.tsv` | none | lane gap | - | - | H060 3/7 |
-| W31 | 1 | W31-G1-S1 | CS-962.2 | product | `clockspeed/surface/web/` `panel_console`, `tests/surface/` `test-panel_console` | `tools/provenance.tsv` | none | - | v0.3.0 | child row filed by W29 | H001 24/45; H004 12/26; H007 12/25; H012 11/19; H016 9/15; H051 2/8; H073 4/6; H085 5/5 |
+| W31 | 1 | W31-G1-S1 | CS-962.2 | product | `clockspeed/surface/web/` `panel_console`; `tests/surface/` `test-panel_console` | `tools/provenance.tsv` | none | - | v0.3.0 | child row filed by W29 | H001 24/45; H004 12/26; H007 12/25; H012 11/19; H016 9/15; H051 2/8; H073 4/6; H085 5/5 |
 | W31 | 1 | W31-G1-S2 | CS-1426 part 1 | product | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase5.md` | none | - | - | - | H013 6/17; H018 5/13; H019 2/13; H023 3/11; H024 3/11; H036 4/9; H041 3/9; H057 4/7; H063 4/6; H072 3/6 |
 | W31 | 2 | W31-G2-S1 | CS-962.3 | product | none | `BACKLOG.md`, `tools/provenance.tsv` | none | - | v0.3.0 | child row filed by W29 | H001 25/45; H003 17/31; H007 13/25; H012 12/19; H016 10/15; H024 4/11; H051 3/8; H073 5/6; H097 4/4; H112 4/4 |
 | W31 | 2 | W31-G2-S2 | CS-1420 part 7 | product | none | none | none | - | - | - | H027 4/10; H065 3/6 |
@@ -296,7 +297,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W31 | filing | W31-F01 | U-063 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W32 | 1 | W32-G1-S1 | CS-962.4 | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4-followups-960.md`, `tools/provenance.tsv` | none | - | v0.3.0 | child row filed by W29 | H008 7/23; H020 8/13; H051 4/8 |
 | W32 | 1 | W32-G1-S2 | CS-1426 part 2 | product | none | none | none | - | - | - | H004 13/26; H006 6/26; H010 6/21 |
-| W32 | 2 | W32-G2-S1 | U-063 unfiled | product | `shell/lib/` `login`, `shell/test/` `login.test` | none | `docs/OPERATIONS.md` | - | - | filed by W31 | H002 24/37; H005 18/26; H026 6/10; H035 5/9 |
+| W32 | 2 | W32-G2-S1 | U-063 unfiled | product | `shell/lib/` `login`; `shell/test/` `login.test` | none | `docs/OPERATIONS.md` | - | - | filed by W31 | H002 24/37; H005 18/26; H026 6/10; H035 5/9 |
 | W32 | 2 | W32-G2-S2 | CS-1420 part 8 | product | none | none | none | - | - | - | H006 7/26; H010 7/21 |
 | W32 | 3 | W32-G3-S1 | CS-1420 part 9 | product | none | none | none | - | - | - | H008 8/23; H041 4/9 |
 | W32 | 3 | W32-G3-S2 | CS-1258.3 | product | none | none | none | - | - | extension filed by W13 | H006 8/26; H010 8/21; H111 2/4 |
@@ -310,7 +311,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W33 | filing | W33-F02 | CS-1064 extension unfiled | product | none | `docs/item_notes/phase5.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W33 | filing | W33-F03 | CS-1254 extension unfiled | product | none | `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W33 | lane | W33-L01 | CS-474 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | lane gap | - | - | H022 1/12; H082 1/5 |
-| W34 | 1 | W34-G1-S1 | CS-1254.1 | product | `clockspeed/progress/` `coverage`, `tests/progress/` `test-coverage` | `tools/provenance.tsv` | none | - | - | extension filed by W33 | - |
+| W34 | 1 | W34-G1-S1 | CS-1254.1 | product | `clockspeed/progress/` `coverage`; `tests/progress/` `test-coverage` | `tools/provenance.tsv` | none | - | - | extension filed by W33 | - |
 | W34 | 1 | W34-G1-S2 | CS-1398.4 | product | none | none | none | - | - | extension filed by W20 | H006 10/26; H008 10/23; H018 7/13; H023 4/11; H024 6/11 |
 | W34 | 2 | W34-G2-S1 | U-075.1 unfiled | product | none | none | none | - | v0.3.0 | filed by W33 | H025 6/10; H028 6/10 |
 | W34 | 2 | W34-G2-S2 | CS-1254.2 | product | none | none | none | - | - | extension filed by W33 | - |
@@ -322,10 +323,10 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W35 | 2 | W35-G2-S1 | CS-1254.4 | product | none | none | none | - | - | extension filed by W33 | H013 8/17; H075 4/5 |
 | W35 | 2 | W35-G2-S2 | CS-1422 part 1 | product | none | none | none | - | - | - | - |
 | W35 | 3 | W35-G3-S1 | CS-1254.5 | product | none | none | none | - | - | extension filed by W33 | H027 6/10; H029 3/9; H065 4/6 |
-| W35 | 3 | W35-G3-S2 | CS-1236.1 | product | `clockspeed/surface/api/` `overlay`, `tests/surface/` `test-overlay` | none | none | - | v0.4.0 | extension filed by W34 | H017 9/15 |
+| W35 | 3 | W35-G3-S2 | CS-1236.1 | product | `clockspeed/surface/api/` `overlay`; `tests/surface/` `test-overlay` | none | none | - | v0.4.0 | extension filed by W34 | H017 9/15 |
 | W35 | filing | W35-F01 | U-003 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W36 | 1 | W36-G1-S1 | CS-1254.6 | product | `tests/advisor/` `test-plan_built` | `tools/provenance.tsv` | none | - | - | extension filed by W33 | H006 11/26; H010 10/21; H037 4/9 |
-| W36 | 1 | W36-G1-S2 | CS-1258.4 | product | `tools/` `a11y_rules`, `tests/` `test-a11y_rules` | `tools/provenance.tsv` | none | - | - | extension filed by W13 | - |
+| W36 | 1 | W36-G1-S2 | CS-1258.4 | product | `tools/` `a11y_rules`; `tests/` `test-a11y_rules` | `tools/provenance.tsv` | none | - | - | extension filed by W13 | - |
 | W36 | 2 | W36-G2-S1 | CS-1254.7 | product | none | `docs/ARCHITECTURE.md` | none | - | - | extension filed by W33 | H023 5/11; H041 5/9 |
 | W36 | 2 | W36-G2-S2 | CS-1258.5 | product | none | none | none | - | - | extension filed by W13 | H088 4/5; H089 4/5 |
 | W36 | 3 | W36-G3-S1 | U-075.2 unfiled | product | none | `docs/item_notes/phase4-followups-960.md` | none | - | v0.3.0 | filed by W33 | H025 7/10; H028 7/10 |
@@ -340,7 +341,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W37 | filing | W37-F01 | U-054 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W37 | filing | W37-F02 | U-056 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W38 | 1 | W38-G1-S1 | CS-1422 part 3 | product | `tests/advisor/` `test-plan_power` | `BACKLOG.md`, `tools/provenance.tsv` | none | - | - | - | H023 7/11; H037 6/9; H041 7/9 |
-| W38 | 1 | W38-G1-S2 | U-054 unfiled | product | `clockspeed/surface/web/` `panel_balance`, `tests/surface/` `test-panel_balance`, `clockspeed/audit/` `shortlist`, `tests/audit/` `test-shortlist` | `docs/item_notes/phase6.md` | none | - | v0.4.0 | filed by W37 | H001 28/45; H003 20/31; H004 15/26; H007 15/25; H008 12/23; H012 13/19; H016 11/15 |
+| W38 | 1 | W38-G1-S2 | U-054 unfiled | product | `clockspeed/surface/web/` `panel_balance`; `tests/surface/` `test-panel_balance`; `clockspeed/audit/` `shortlist`; `tests/audit/` `test-shortlist` | `docs/item_notes/phase6.md` | none | - | v0.4.0 | filed by W37 | H001 28/45; H003 20/31; H004 15/26; H007 15/25; H008 12/23; H012 13/19; H016 11/15 |
 | W38 | 2 | W38-G2-S1 | CS-1236.5 | product | `tests/advisor/` `test-overlay_trace` | none | none | - | v0.4.0 | extension filed by W34 | H013 9/17; H075 5/5; H080 4/5 |
 | W38 | 2 | W38-G2-S2 | U-056.1 unfiled | product | none | none | none | - | - | filed by W37 | H001 29/45; H004 16/26; H025 9/10; H028 9/10 |
 | W38 | 3 | W38-G3-S1 | CS-1236.2 | product | none | none | none | - | v0.4.0 | extension filed by W34 | - |
@@ -348,7 +349,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W38 | filing | W38-F01 | U-012 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W38 | filing | W38-F02 | U-064 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W39 | 1 | W39-G1-S1 | CS-1236.3 | product | none | none | `BOOTSTRAP.md` | - | v0.4.0 | extension filed by W34 | H001 30/45; H003 21/31; H007 16/25; H009 12/21; H033 6/9; H042 5/9; H045 6/8; H061 3/7; H062 5/7 |
-| W39 | 1 | W39-G1-S2 | U-012.1 unfiled | product | `clockspeed/advisor/` `glance`, `tests/advisor/` `test-glance` | `tools/provenance.tsv` | none | - | v0.5.0 | filed by W38 | H013 10/17; H036 7/9 |
+| W39 | 1 | W39-G1-S2 | U-012.1 unfiled | product | `clockspeed/advisor/` `glance`; `tests/advisor/` `test-glance` | `tools/provenance.tsv` | none | - | v0.5.0 | filed by W38 | H013 10/17; H036 7/9 |
 | W39 | 2 | W39-G2-S1 | CS-1236.6 | product | `tests/advisor/` `test-plan_preview` | none | none | - | v0.4.0 | extension filed by W34 | H013 11/17; H030 8/9; H041 8/9; H056 7/7; H064 5/6 |
 | W39 | 2 | W39-G2-S2 | U-056.2 unfiled | product | none | none | none | - | - | filed by W37 | H001 31/45; H003 22/31; H004 17/26; H025 10/10; H028 10/10; H088 5/5; H089 5/5 |
 | W39 | 3 | W39-G3-S1 | CS-1236.7 | product | none | none | none | - | v0.4.0 | extension filed by W34 | H027 8/10; H065 6/6 |
@@ -356,8 +357,8 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W39 | filing | W39-F01 | U-010 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W40 | 1 | W40-G1-S1 | CS-1236.8 | product | none | none | none | - | v0.4.0 | extension filed by W34 | H006 13/26; H008 13/23; H010 12/21; H018 8/13; H024 7/11; H027 9/10 |
 | W40 | 1 | W40-G1-S2 | U-010 unfiled | product | none | `ROADMAP.md`, `docs/GATED.md`, `docs/LEDGER.md` | `docs/hud_doctrine.md` | - | v0.5.0 | filed by W39 | H053 6/8 |
-| W40 | 2 | W40-G2-S1 | U-012.2 unfiled | product | `clockspeed/surface/api/` `glance`, `tests/surface/` `test-glance_route` | `docs/ARCHITECTURE.md`, `tools/provenance.tsv` | `BOOTSTRAP.md` | - | v0.5.0 | filed by W38 | H001 32/45; H003 23/31; H008 14/23; H009 13/21; H033 7/9; H042 6/9; H045 7/8; H061 4/7; H062 6/7 |
-| W40 | 2 | W40-G2-S2 | CS-1243.1 | product | `clockspeed/audit/` `siting`, `tests/audit/` `test-siting` | `tools/provenance.tsv` | none | - | - | - | - |
+| W40 | 2 | W40-G2-S1 | U-012.2 unfiled | product | `clockspeed/surface/api/` `glance`; `tests/surface/` `test-glance_route` | `docs/ARCHITECTURE.md`, `tools/provenance.tsv` | `BOOTSTRAP.md` | - | v0.5.0 | filed by W38 | H001 32/45; H003 23/31; H008 14/23; H009 13/21; H033 7/9; H042 6/9; H045 7/8; H061 4/7; H062 6/7 |
+| W40 | 2 | W40-G2-S2 | CS-1243.1 | product | `clockspeed/audit/` `siting`; `tests/audit/` `test-siting` | `tools/provenance.tsv` | none | - | - | - | - |
 | W40 | 3 | W40-G3-S1 | CS-1048.4 | product | none | none | none | - | - | extension filed by W2 | - |
 | W40 | filing | W40-F01 | U-057 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W40 | lane | W40-L01 | CS-1001 | process | none | none | none | lane gap | - | - | - |
@@ -366,12 +367,12 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W41 | 2 | W41-G2-S1 | U-057.1 unfiled | product | none | none | none | - | - | filed by W40 | H047 8/8; H068 6/6 |
 | W41 | 2 | W41-G2-S2 | CS-1249.1 | product | none | `config/lane_scopes.json` | none | - | - | - | - |
 | W41 | 3 | W41-G3-S1 | U-057.2 unfiled | product | none | none | `docs/OPERATIONS.md` | - | - | filed by W40 | H002 26/37; H005 21/26 |
-| W41 | 3 | W41-G3-S2 | CS-1048.3 | product | `clockspeed/audit/` `labels`, `tests/audit/` `test-labels` | none | none | - | - | extension filed by W2 | - |
+| W41 | 3 | W41-G3-S2 | CS-1048.3 | product | `clockspeed/audit/` `labels`; `tests/audit/` `test-labels` | none | none | - | - | extension filed by W2 | - |
 | W41 | filing | W41-F01 | U-109 unfiled | process | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
-| W42 | 1 | W42-G1-S1 | CS-1243.2 | product | `clockspeed/advisor/rules/` `siting`, `tests/advisor/rules/` `test-siting` | `tools/provenance.tsv` | none | - | - | - | - |
+| W42 | 1 | W42-G1-S1 | CS-1243.2 | product | `clockspeed/advisor/rules/` `siting`; `tests/advisor/rules/` `test-siting` | `tools/provenance.tsv` | none | - | - | - | - |
 | W42 | 1 | W42-G1-S2 | CS-1048.6 | product | none | `BACKLOG.md`, `ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase5.md`, `tools/provenance.tsv` | none | - | - | extension filed by W2 | - |
 | W42 | 2 | W42-G2-S1 | CS-1243.3 | product | none | none | none | - | - | - | H013 12/17; H017 10/15; H019 6/13; H029 4/9; H058 2/7; H074 1/5 |
-| W42 | 2 | W42-G2-S2 | U-109 unfiled | process | `clockspeed/audit/` `extraction`, `tests/audit/` `test-extraction` | `BACKLOG.md` | none | - | - | filed by W41 | H054 3/7; H059 3/7; H093 3/4; H110 3/4 |
+| W42 | 2 | W42-G2-S2 | U-109 unfiled | process | `clockspeed/audit/` `extraction`; `tests/audit/` `test-extraction` | `BACKLOG.md` | none | - | - | filed by W41 | H054 3/7; H059 3/7; H093 3/4; H110 3/4 |
 | W42 | 3 | W42-G3-S1 | CS-1249.2 | product | `tests/solve/` `test-cycles` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase5.md`, `tools/provenance.tsv` | none | - | - | - | H020 10/13 |
 | W42 | 3 | W42-G3-S2 | CS-440.1 | product | none | none | none | - | - | - | - |
 | W42 | filing | W42-F01 | CS-872 extension unfiled | product | none | `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
@@ -385,13 +386,13 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W43 | 3 | W43-G3-S2 | CS-440.2 | product | none | none | none | - | - | - | H011 5/20; H081 1/5 |
 | W43 | lane | W43-L01 | CS-1003 | process | none | none | none | lane gap | - | - | - |
 | W44 | 1 | W44-G1-S1 | CS-1047.5 | product | none | none | none | - | - | child row filed by W42 | H071 5/6 |
-| W44 | 1 | W44-G1-S2 | CS-1425 part 1 | product | `clockspeed/advisor/rules/` `production`, `tests/advisor/rules/` `test-production` | none | none | - | - | - | - |
+| W44 | 1 | W44-G1-S2 | CS-1425 part 1 | product | `clockspeed/advisor/rules/` `production`; `tests/advisor/rules/` `test-production` | none | none | - | - | - | - |
 | W44 | 2 | W44-G2-S1 | CS-1047.4 | product | none | none | none | - | - | child row filed by W42 | H004 18/26 |
 | W44 | 2 | W44-G2-S2 | CS-1428 part 1 | product | none | none | `BOOTSTRAP.md` | - | - | - | H001 35/45; H003 25/31; H008 17/23; H009 14/21; H017 12/15; H018 10/13; H024 9/11; H033 8/9; H042 7/9; H045 8/8; H061 5/7; H062 7/7 |
 | W44 | 3 | W44-G3-S1 | U-077.2 unfiled | process | none | none | none | - | - | filed by W4 | H001 36/45; H008 18/23 |
-| W45 | 1 | W45-G1-S1 | CS-1047.6 | product | `clockspeed/surface/web/` `panel_plan`, `tests/surface/` `test-panel_plan` | `tools/provenance.tsv` | none | - | - | child row filed by W42 | - |
+| W45 | 1 | W45-G1-S1 | CS-1047.6 | product | `clockspeed/surface/web/` `panel_plan`; `tests/surface/` `test-panel_plan` | `tools/provenance.tsv` | none | - | - | child row filed by W42 | - |
 | W45 | 1 | W45-G1-S2 | CS-872.2 | product | `tests/surface/` `test-shortcuts` | `ROADMAP.md`, `config/lane_scopes.json`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md`, `tools/provenance.tsv` | none | - | - | extension filed by W42 | H001 37/45; H003 26/31; H004 19/26; H006 15/26; H016 12/15; H071 6/6; H073 6/6; H084 4/5 |
-| W45 | 2 | W45-G2-S1 | CS-1047.7 | product | `clockspeed/surface/web/` `panel_world_power`, `tests/surface/` `test-panel_world_power` | `tools/provenance.tsv` | none | - | - | child row filed by W42 | - |
+| W45 | 2 | W45-G2-S1 | CS-1047.7 | product | `clockspeed/surface/web/` `panel_world_power`; `tests/surface/` `test-panel_world_power` | `tools/provenance.tsv` | none | - | - | child row filed by W42 | - |
 | W45 | 2 | W45-G2-S2 | CS-1254.8 | product | none | `tools/provenance.tsv` | none | - | - | extension filed by W33 | H001 38/45; H003 27/31; H007 17/25; H012 14/19; H016 13/15; H051 5/8; H084 5/5 |
 | W45 | 3 | W45-G3-S1 | CS-1047.1 | product | none | none | none | - | - | child row filed by W42 | H007 18/25; H012 15/19 |
 | W45 | 3 | W45-G3-S2 | CS-1425 part 2 | product | none | none | none | - | - | - | H013 13/17; H058 3/7 |
@@ -404,21 +405,21 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W46 | 3 | W46-G3-S2 | CS-1425 part 4 | product | none | `ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase5.md` | none | - | - | - | H058 5/7 |
 | W46 | lane | W46-L01 | CS-1076 | process | none | none | none | lane gap | - | - | - |
 | W47 | 1 | W47-G1-S1 | U-078.2 unfiled | product | none | none | none | - | - | filed by W45 | H066 2/6; H083 2/5 |
-| W47 | 1 | W47-G1-S2 | CS-1058.1 | product | `tests/audit/` `test-network_edges`, `tests/audit/` `test-network_library` | none | none | - | - | extension filed by W3; child row filed by W3 | H054 5/7; H059 5/7 |
+| W47 | 1 | W47-G1-S2 | CS-1058.1 | product | `tests/audit/` `test-network_edges`; `tests/audit/` `test-network_library` | none | none | - | - | extension filed by W3; child row filed by W3 | H054 5/7; H059 5/7 |
 | W47 | 2 | W47-G2-S1 | CS-1428 part 2 | product | none | none | none | - | - | - | H001 40/45; H003 29/31; H006 17/26; H008 19/23; H009 16/21; H017 13/15; H018 11/13; H023 10/11; H024 10/11 |
-| W47 | 2 | W47-G2-S2 | CS-1433 part 1 | product | `clockspeed/advisor/rules/` `materials`, `tests/advisor/rules/` `test-materials` | none | none | - | - | - | - |
+| W47 | 2 | W47-G2-S2 | CS-1433 part 1 | product | `clockspeed/advisor/rules/` `materials`; `tests/advisor/rules/` `test-materials` | none | none | - | - | - | - |
 | W47 | 3 | W47-G3-S1 | CS-1058.2 | product | none | none | none | - | - | extension filed by W3; child row filed by W3 | H054 6/7; H059 6/7 |
 | W47 | 3 | W47-G3-S2 | U-125.2 unfiled | product | `tests/surface/` `test-oplog_redaction` | `tools/provenance.tsv` | none | - | - | filed by W20 | H007 19/25; H096 2/4 |
 | W47 | filing | W47-F01 | U-022 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W48 | 1 | W48-G1-S1 | U-078.3 unfiled | product | none | `BACKLOG.md`, `docs/item_notes/phase6.md` | none | - | - | filed by W45 | H003 30/31; H004 20/26; H006 18/26; H010 14/21; H111 3/4 |
-| W48 | 1 | W48-G1-S2 | U-022.1 unfiled | product | `clockspeed/solve/` `presets`, `tests/solve/` `test-presets` | `docs/ARCHITECTURE.md`, `tools/provenance.tsv` | none | - | - | filed by W47 | H107 2/4 |
+| W48 | 1 | W48-G1-S2 | U-022.1 unfiled | product | `clockspeed/solve/` `presets`; `tests/solve/` `test-presets` | `docs/ARCHITECTURE.md`, `tools/provenance.tsv` | none | - | - | filed by W47 | H107 2/4 |
 | W48 | 2 | W48-G2-S1 | CS-1428 part 3 | product | none | none | none | - | - | - | H004 21/26; H006 19/26; H010 15/21 |
-| W48 | 2 | W48-G2-S2 | CS-1427 part 1 | product | `clockspeed/solve/` `haul`, `tests/solve/` `test-haul` | `tools/provenance.tsv` | none | - | - | - | H107 3/4 |
+| W48 | 2 | W48-G2-S2 | CS-1427 part 1 | product | `clockspeed/solve/` `haul`; `tests/solve/` `test-haul` | `tools/provenance.tsv` | none | - | - | - | H107 3/4 |
 | W48 | 3 | W48-G3-S1 | U-125.3 unfiled | product | `tests/surface/` `test-oplog_rotation` | `tools/provenance.tsv` | none | - | - | filed by W20 | H007 20/25; H096 3/4 |
 | W48 | 3 | W48-G3-S2 | U-078.4 unfiled | product | none | none | none | - | - | filed by W45 | H004 22/26; H006 20/26; H010 16/21; H066 3/6; H083 3/5; H111 4/4 |
 | W48 | filing | W48-F01 | U-047 unfiled | product | none | `ROADMAP.md`, `docs/item_notes/phase5.md`, `docs/LEDGER.md` | none | - | - | - | - |
-| W49 | 1 | W49-G1-S1 | CS-1431 part 1 | product | `clockspeed/advisor/rules/` `progress`, `tests/advisor/rules/` `test-progress` | `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | - | - | H013 14/17; H014 6/16; H015 6/15; H019 9/13; H029 6/9; H058 6/7; H074 3/5; H079 4/5 |
-| W49 | 1 | W49-G1-S2 | CS-1427 part 2 | product | `clockspeed/advisor/rules/` `transport`, `tests/advisor/rules/` `test-transport` | `tools/provenance.tsv` | none | - | - | - | - |
+| W49 | 1 | W49-G1-S1 | CS-1431 part 1 | product | `clockspeed/advisor/rules/` `progress`; `tests/advisor/rules/` `test-progress` | `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | - | - | H013 14/17; H014 6/16; H015 6/15; H019 9/13; H029 6/9; H058 6/7; H074 3/5; H079 4/5 |
+| W49 | 1 | W49-G1-S2 | CS-1427 part 2 | product | `clockspeed/advisor/rules/` `transport`; `tests/advisor/rules/` `test-transport` | `tools/provenance.tsv` | none | - | - | - | - |
 | W49 | 2 | W49-G2-S1 | CS-1433 part 2 | product | none | none | none | - | - | - | H013 15/17; H100 3/4 |
 | W49 | 2 | W49-G2-S2 | U-047 unfiled | product | none | `BACKLOG.md`, `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase5.md` | none | - | - | filed by W48 | H014 7/16; H015 7/15; H019 10/13 |
 | W49 | 3 | W49-G3-S1 | CS-458.1 | process | none | none | none | - | - | - | H011 6/20; H022 2/12 |
@@ -446,7 +447,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W52 | filing | W52-F01 | U-070 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W53 | 1 | W53-G1-S1 | U-125.6 unfiled | product | none | none | none | - | - | filed by W20 | H009 18/21 |
 | W53 | 1 | W53-G1-S2 | U-070 unfiled | product | none | none | none | - | - | filed by W52 | H001 44/45; H004 26/26; H066 6/6; H083 5/5 |
-| W53 | 2 | W53-G2-S1 | U-125.7 unfiled | product | `shell/lib/` `oplog`, `shell/test/` `oplog.test`, `tests/shell/` `test-oplog_binding` | `tools/provenance.tsv` | none | - | - | filed by W20 | H002 28/37; H098 3/4; H099 3/4 |
+| W53 | 2 | W53-G2-S1 | U-125.7 unfiled | product | `shell/lib/` `oplog`; `shell/test/` `oplog.test`; `tests/shell/` `test-oplog_binding` | `tools/provenance.tsv` | none | - | - | filed by W20 | H002 28/37; H098 3/4; H099 3/4 |
 | W53 | 2 | W53-G2-S2 | CS-1058.6 | product | none | none | none | - | - | extension filed by W3; child row filed by W3 | H054 7/7; H059 7/7 |
 | W53 | 3 | W53-G3-S1 | U-055.2 unfiled | product | none | none | none | - | - | filed by W50 | H051 8/8 |
 | W53 | 3 | W53-G3-S2 | CS-1431 part 3 | product | none | `docs/ARCHITECTURE.md` | none | - | - | - | H006 25/26; H008 23/23; H009 19/21; H010 20/21; H017 15/15; H018 12/13; H023 11/11; H024 11/11 |
@@ -459,11 +460,11 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W54 | 3 | W54-G3-S1 | U-124.3 unfiled | product | none | `docs/ARCHITECTURE.md` | none | - | - | filed by W53 | H006 26/26; H010 21/21 |
 | W54 | filing | W54-F01 | U-092 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W54 | filing | W54-F02 | U-154 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
-| W55 | 1 | W55-G1-S1 | CS-1262.1 | product | `clockspeed/surface/` `diagnostics`, `tests/surface/` `test-diagnostics` | `docs/item_notes/phase6.md`, `tools/provenance.tsv` | none | - | - | - | - |
+| W55 | 1 | W55-G1-S1 | CS-1262.1 | product | `clockspeed/surface/` `diagnostics`; `tests/surface/` `test-diagnostics` | `docs/item_notes/phase6.md`, `tools/provenance.tsv` | none | - | - | - | - |
 | W55 | 1 | W55-G1-S2 | U-064.2 unfiled | product | none | none | `docs/OPERATIONS.md` | - | - | filed by W38 | H002 31/37; H005 24/26 |
 | W55 | 2 | W55-G2-S1 | CS-1262.2 | product | `tests/surface/` `test-diagnostics_redaction` | `tools/provenance.tsv` | none | - | - | - | - |
 | W55 | 2 | W55-G2-S2 | U-154.1 unfiled | product | `docs/adr/` `NNNN-the-oodle-data-licence-verdict` | `THIRD_PARTY.md`, `docs/LEDGER.md`, `docs/adr/README.md`, `tools/provenance.tsv` | none | - | - | filed by W54 | - |
-| W55 | 3 | W55-G3-S1 | CS-1262.3 | product | `shell/lib/` `diagnostics`, `shell/test/` `diagnostics.test` | `tools/provenance.tsv` | none | - | - | - | H002 32/37 |
+| W55 | 3 | W55-G3-S1 | CS-1262.3 | product | `shell/lib/` `diagnostics`; `shell/test/` `diagnostics.test` | `tools/provenance.tsv` | none | - | - | - | H002 32/37 |
 | W55 | 3 | W55-G3-S2 | U-092 unfiled | product | `tests/surface/` `test-response_headers` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase6.md`, `tools/provenance.tsv` | none | - | - | filed by W54 | H007 23/25; H012 17/19 |
 | W55 | filing | W55-F01 | U-090 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
 | W55 | filing | W55-F02 | U-093 unfiled | product | none | `ROADMAP.md`, `config/lane_scopes.json`, `docs/item_notes/phase6.md`, `docs/LEDGER.md` | none | - | - | - | - |
@@ -492,7 +493,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W59 | 1 | W59-G1-S1 | CS-832 | product | none | none | none | - | - | - | H011 10/20; H022 4/12 |
 | W59 | 1 | W59-G1-S2 | CS-443.1 | product | none | none | none | - | - | - | H031 4/9; H038 5/9 |
 | W59 | 2 | W59-G2-S1 | CS-829.2 | product | none | none | none | - | - | - | H011 11/20 |
-| W59 | 2 | W59-G2-S2 | CS-1241.2 | product | `clockspeed/data/` `DECISIONS-TABLE`, `tests/data/` `test-build_variants`, `tests/data/` `test-decisions_table` | `config/lane_scopes.json` | none | - | - | - | - |
+| W59 | 2 | W59-G2-S2 | CS-1241.2 | product | `clockspeed/data/` `DECISIONS-TABLE`; `tests/data/` `test-build_variants`; `tests/data/` `test-decisions_table` | `config/lane_scopes.json` | none | - | - | - | - |
 | W59 | 3 | W59-G3-S1 | CS-1150.2 | product | `tests/save/` `test-residual_redaction` | `tools/provenance.tsv` | none | - | - | - | H039 4/9 |
 | W59 | 3 | W59-G3-S2 | CS-1091 | process | `tests/save/` `test-world_BLOCK` | `tools/provenance.tsv` | none | - | - | - | H014 11/16; H048 4/8; H052 5/8; H118 1/4 |
 | W59 | lane | W59-L01 | CS-1241.3 | product | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase5.md`, `tools/provenance.tsv` | none | lane gap | - | - | H020 13/13 |
@@ -527,7 +528,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W64 | 2 | W64-G2-S1 | CS-458.2 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | - | - | - | H070 5/6 |
 | W64 | 2 | W64-G2-S2 | CS-988.4 | process | none | none | none | - | - | - | H048 7/8; H107 4/4 |
 | W64 | 3 | W64-G3-S1 | CS-412.1 | process | none | none | none | - | - | - | H011 17/20; H039 9/9; H081 4/5 |
-| W64 | 3 | W64-G3-S2 | CS-1358.1 | process | `tests/` `tree_population`, `tests/` `test-tree_population` | none | none | - | - | - | H060 5/7; H117 2/4 |
+| W64 | 3 | W64-G3-S2 | CS-1358.1 | process | `tests/` `tree_population`; `tests/` `test-tree_population` | none | none | - | - | - | H060 5/7; H117 2/4 |
 | W65 | 1 | W65-G1-S1 | CS-455 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | - | - | - | H011 18/20; H022 8/12; H049 5/8; H082 2/5 |
 | W65 | 1 | W65-G1-S2 | CS-1358.2 | process | none | none | none | - | - | - | H002 35/37; H102 1/4; H109 1/4 |
 | W65 | 2 | W65-G2-S1 | CS-943 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4-followups-900.md` | none | - | - | - | - |
@@ -538,7 +539,7 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W66 | 1 | W66-G1-S2 | CS-1077 | process | none | none | none | - | - | - | H109 2/4 |
 | W66 | 2 | W66-G2-S1 | CS-988.5 | process | none | none | none | - | - | - | H014 15/16; H022 9/12 |
 | W66 | 2 | W66-G2-S2 | CS-852.2 | process | none | none | none | - | - | - | - |
-| W66 | 3 | W66-G3-S1 | CS-945.1 | process | `tools/` `branch_census`, `tests/` `test-branch_census` | none | none | - | - | - | - |
+| W66 | 3 | W66-G3-S1 | CS-945.1 | process | `tools/` `branch_census`; `tests/` `test-branch_census` | none | none | - | - | - | - |
 | W66 | 3 | W66-G3-S2 | CS-1010.2 | process | none | none | none | - | - | - | - |
 | W66 | lane | W66-L01 | CS-1010.3 | process | none | `docs/item_notes/phase4-followups-1000.md` | none | lane gap | - | - | - |
 | W67 | 1 | W67-G1-S1 | CS-855.1 | process | none | none | none | - | - | - | - |
@@ -556,14 +557,14 @@ Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning 
 | W69 | 1 | W69-G1-S1 | CS-1130.2 | process | `tools/` `ACCEPTANCE-CLAUSE-PIN-RECORD` | `docs/LEDGER.md`, `tools/provenance.tsv` | none | - | - | - | - |
 | W69 | 1 | W69-G1-S2 | CS-1149.2 | process | `tests/save/` `test-residual_census` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4-followups-1000.md`, `docs/item_notes/phase4-followups.md`, `tools/provenance.tsv` | none | - | - | - | H106 3/4 |
 | W69 | 2 | W69-G2-S1 | CS-1075.1 | process | none | none | none | - | - | - | H109 3/4 |
-| W69 | 2 | W69-G2-S2 | CS-1295.1 | process | `docs/_archive/` `DATE-cs1295-repo-review-plan-2`, `docs/_archive/` `DATE-cs1295-repo-review-findings-2` | `BACKLOG.md`, `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase7.md`, `tools/provenance.tsv` | none | - | - | - | - |
+| W69 | 2 | W69-G2-S2 | CS-1295.1 | process | `docs/_archive/` `DATE-cs1295-repo-review-plan-2`; `docs/_archive/` `DATE-cs1295-repo-review-findings-2` | `BACKLOG.md`, `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase7.md`, `tools/provenance.tsv` | none | - | - | - | - |
 | W69 | 3 | W69-G3-S1 | CS-439.1 | process | none | none | none | - | - | - | H040 9/9; H044 8/8 |
 | W69 | 3 | W69-G3-S2 | CS-946 | process | `docs/adr/` `NNNN-cs-946-SLUG` | `ROADMAP.md`, `docs/LEDGER.md`, `docs/adr/README.md`, `docs/item_notes/phase4-followups-900.md`, `tools/provenance.tsv` | none | - | - | - | - |
 | W70 | 1 | W70-G1-S1 | CS-1129 | process | none | none | none | - | - | - | H090 4/5 |
 | W70 | 1 | W70-G1-S2 | CS-807.2 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4-followups.md` | none | - | - | - | H049 7/8; H104 4/4 |
 | W70 | 2 | W70-G2-S1 | CS-499.2 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4.md` | none | - | - | - | H014 16/16; H105 4/4; H106 4/4 |
 | W70 | 2 | W70-G2-S2 | CS-966 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/item_notes/phase4-followups-960.md` | none | - | - | - | - |
-| W70 | 3 | W70-G3-S1 | CS-1055.2 | process | `tests/` `test-live_copies_guard`, `tests/` `test-write_tracer` | `tools/provenance.tsv` | `docs/OPERATIONS.md` | - | - | - | - |
+| W70 | 3 | W70-G3-S1 | CS-1055.2 | process | `tests/` `test-live_copies_guard`; `tests/` `test-write_tracer` | `tools/provenance.tsv` | `docs/OPERATIONS.md` | - | - | - | - |
 | W70 | 3 | W70-G3-S2 | CS-439.2 | process | `tests/` `test-silent_loss_guard` | none | none | - | - | - | H031 9/9; H038 9/9 |
 | W70 | lane | W70-L01 | CS-1141 | process | none | `ROADMAP.md`, `docs/LEDGER.md`, `docs/history_notes.md`, `docs/item_notes/phase4-followups-1000.md` | none | lane gap | - | - | - |
 | W71 | 1 | W71-G1-S1 | CS-988.7 | process | none | none | none | - | - | - | - |
