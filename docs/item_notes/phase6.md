@@ -1195,16 +1195,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 both surfaces import the same token file with light and dark variants; no hard-coded colour literal remains in either surface outside it
 
-## CS-1261
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Non-negotiable 13: never echo a value.
-
-### Acceptance
-
-binding a non-loopback address without an explicit local flag fails fast; no query-string token is accepted; refusal reasons are logged server-side and the caller gets a generic refusal; two generated certs differ in subject
-
 ## CS-1437
 
 ### Filed 2026-11-25 by the session 161 wave 0 filing

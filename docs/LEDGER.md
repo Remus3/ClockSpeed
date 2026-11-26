@@ -75,6 +75,90 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1261 - CLOSED: local API hardening - loopback by construction, no query-string or header token admitted, refusal causes logged from a closed set, a per-mint random cert subject
+Verification: `tests/surface/test_server.py::test_the_server_refuses_any_address_that_is_not_loopback`,
+`tests/surface/test_config.py::test_the_config_binds_loopback_and_never_a_wildcard`,
+`tests/surface/test_server.py::test_a_query_string_token_does_not_stand_in_for_the_proof`,
+`tests/surface/test_server.py::test_a_header_borne_credential_does_not_stand_in_for_the_proof`,
+`tests/surface/test_server.py::test_admission_reads_only_the_proof_headers_of_an_unproven_mutation`,
+`tests/surface/test_server.py::test_an_unproven_post_logs_its_cause_word_and_nothing_else`,
+`tests/surface/test_server.py::test_a_cause_outside_the_closed_set_is_never_written`,
+`tests/surface/test_server.py::test_no_refused_request_byte_reaches_the_log_or_the_body`,
+`tests/test_make_cert.py::test_two_generated_certs_differ_in_subject` and
+`tests/test_make_cert.py::test_the_subject_holds_no_account_machine_or_home_name`.
+ADR: `docs/adr/0027-cs-1261-local-api-hardening.md`
+SCOPE. Wave 1, group 3, slice W1-G3-S1, one part, built by one worktree slice on the ADR number the session 163 merger
+reserved first, and landed on main by the merger as four commits. Each is resolved by its exact subject with
+`git log main --fixed-strings --grep`, which prints one hit; not with `--all`, because the builder worktree branch
+still holds the candidates under the same subjects and `--all` prints two. The four subjects, in landing order:
+"feat(CS-1261): log refusal causes, per-cert subject, ADR 0027", "chore(CS-1261): stamp the provenance row for ADR
+0027", "test(CS-1261): pin header credentials and the secrets source" and "test(CS-1261): pin that admission reads
+only the proof headers". This close is a separate merger commit that writes docs/LEDGER.md, ROADMAP.md,
+docs/item_notes/phase6.md, docs/adr/README.md and config/lane_scopes.json and nothing else.
+MERGED FILES: clockspeed/surface/server.py, scripts/make_cert.py, tests/surface/test_server.py,
+tests/test_make_cert.py, docs/adr/0027-cs-1261-local-api-hardening.md and tools/provenance.tsv. The graded files equal
+the frozen candidate by blob.
+CLAUSES, as the leaf filed them (one sentence of four clauses), each graded at the landed tree:
+CLAUSE 1 MET, by construction (ADR 0027 decision 1, D59): no explicit local flag exists to permit another address,
+because the server entry point declares only the port, the cert directory and the no-world flag, and a non-loopback
+address is refused before any bind. `test_the_server_refuses_any_address_that_is_not_loopback` and
+`test_the_config_binds_loopback_and_never_a_wildcard` passed.
+CLAUSE 2 MET, as a pin proven live by applied mutants, pristine green and mutated red, recorded as a pin and not as
+red-first evidence (ruling G11): no credential exists to accept (D60; ADR 0027 decision 2, no token built now, its
+trigger kept in the BACKLOG.md "Per-start token" row). `test_a_query_string_token_does_not_stand_in_for_the_proof`
+(token, access_token and auth), its control `test_the_token_pin_control_reaches_the_spy_when_the_proof_is_sent`,
+`test_a_header_borne_credential_does_not_stand_in_for_the_proof` (six parameters),
+`test_admission_reads_only_the_proof_headers_of_an_unproven_mutation` and its plant
+`test_the_admission_recorder_sees_a_planted_extra_header_read` passed.
+CLAUSE 3 MET (ruling G10): only a 403 refusal logs a cause, in the one form `<METHOD> <template> 403 refused=proof`,
+from a closed set held in clockspeed/surface/server.py whose only member is proof; the caller gets the one published
+envelope, cross_origin_refused, unchanged whatever the cause, and no request byte reaches the log or the body.
+`test_the_refusal_cause_vocabulary_is_the_closed_set_proof`,
+`test_an_unproven_post_logs_its_cause_word_and_nothing_else` (six parameters),
+`test_an_unproven_post_answers_the_published_envelope_and_names_no_cause`, `test_only_a_refusal_logs_a_cause_word`,
+`test_a_cause_outside_the_closed_set_is_never_written`, `test_no_refused_request_byte_reaches_the_log_or_the_body` and
+`test_the_refusal_canary_sweep_finds_a_planted_leak` passed.
+CLAUSE 4 MET (ruling G12): each mint takes the subject `/CN=clockspeed-local-` plus `secrets.token_hex(16)`, the SAN
+unchanged, and no account, machine or home name in it. `test_two_generated_certs_differ_in_subject` (two real mints,
+read back), `test_cert_argv_subject_is_a_per_mint_random_common_name`,
+`test_two_rendered_commands_carry_different_subjects`, `test_the_subject_holds_no_account_machine_or_home_name`,
+`test_the_subject_tail_is_secrets_token_hex_used_once_and_verbatim` and
+`test_the_rendered_command_takes_its_subject_from_one_mint` passed, none skipped.
+WHOLE FILES at the graded tree: tests/surface/test_server.py, tests/surface/test_config.py and tests/test_make_cert.py
+read 253 passed and 1 skipped (a pre-existing chmod arm, no clause), exit 0, observed by ruling S163-R5.
+VERDICTS: the security and scope adversary returned NOT REFUTED. The mutation adversary returned REFUTED at its third
+round on two surviving mutants only, C2l and C2m; every other mutant (query-token, header-token, cause-log, envelope,
+reason-code and subject mutants among them) was killed, with the pristine control green first and last. Graded CLOSE
+by ruling S163-R5, a distinct adjudicator that planned, built, landed and reviewed neither item. Its runner-up (do not
+close: C2l and C2m show the token pin does not cover every reading route) lost: the clause is the query string, pinned
+and mutant-proven, and the header coverage exceeds it.
+RESIDUALS, stated plainly: C2l and C2m survive. A mutant that stashes a credential header read BEFORE the recording
+window opens (one in the request-body drain, one at the top of the POST handler), keyed on a header the pin never
+sends (X-Forwarded-User), admits a mutation and no test sees it. Recorded, not repaired, by the merger's stop-by-cost
+call under CLAUDE.md section 7 (an adversary loop on low-risk hardening stops by cost against risk and records the
+residual).
+G18 NOT WRITTEN: the BACKLOG.md "Per-start token" row still carries only its trigger. The fields D60 wants beside it
+(the slice-0 answers, the D132 transport, the D135 protocol and the token refusal code) were never measured, so this
+close writes nothing there and BACKLOG.md is unchanged (ruling G7: never fabricated).
+FOR THE LATER U-107.3 BUILDER (ruling G9): this item changed clockspeed/surface/server.py and
+tests/surface/test_server.py first, and that brief starts from both files as they stand after this close.
+CLOSED IN THIS COMMIT: the item's ROADMAP.md line and its whole section in docs/item_notes/phase6.md (the filing note
+and the acceptance) are deleted, not moved (161 D5), because this record carries what the section said
+(`docs/item_notes.md`). The docs/adr/README.md index row 0027 moves from reserved to accepted, linked to the ADR (that
+file's section 5, step 3). The item's entry leaves scopes.dashboard.excluded in config/lane_scopes.json, which would
+otherwise name a row that is no longer a takeable anchor (excluded_but_not_a_takeable_anchor_row,
+`tests/ops/test_lane_scope.py`).
+KNOWN CONFLICT, not blocking and not edited here: the CS-1437 acceptance (plan key U-089) clause 14 requires this
+item's leaf section byte-unchanged, and its line range was already stale; after this deletion that half is met only
+vacuously. The merger files a correction (a decision record that closes nothing) before U-089.1 dispatches in wave 3.
+GATES on this commit's tree, from the repo root on the .venv interpreter, no whole suite:
+`python tools/drift_guard.py` exit 0, 11 guards, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN; `python tools/doc_budget.py`
+exit 0, VERDICT PASS, 43 measured, 0 over budget; `python -m pytest` over tests/test_docs_citations.py,
+tests/test_citation_guard_shapes.py, tests/test_ledger_entry_shape.py, tests/data/test_item_notes_index.py,
+tests/test_doc_sweep.py, tests/test_scaffold.py, tests/test_citation_tables.py, tests/test_dated_headings.py,
+tests/test_disposition_sites.py, tests/ops/test_lane_scope.py and tests/ops/test_scope_binding.py with
+`-q -n 4 -p no:cacheprovider`, exit 0, 1094 passed; `python tools/precommit_gate.py --staged` exit 0. Not pushed.
+
 ### 2026-11-25 - CS-1411 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1411 STAYS OPEN: the wave runbook landed as docs/OPERATIONS.md section 10.8 and its annex pointer
 Verification: `docs/OPERATIONS.md` section 10.8 (its six bold lead-in paragraphs), `docs/item_notes/wave-plan.md`
 (the last bullet of its Pointers block), plus `tests/test_docs_citations.py`, `tests/test_doc_sweep.py` and

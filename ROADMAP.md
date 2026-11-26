@@ -289,7 +289,6 @@ CS-1258 - an accessibility baseline for dashboard and companion - acceptance: in
 CS-1436 - input and pressed-filter boundaries draw at 1.4:1, and no arm computes the contrast of any declared colour pairing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1259 - the dashboard is one self-contained page with no network fetch at runtime - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1260 - one design-token source consumed by both the dashboard and the companion - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1261 - local API hardening: loopback-only bind, header-only tokens, private refusals, per-install cert subject - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1437 - a page from another origin can reach the read and compute doors of the local API - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1434 - the page opens on the answer: four views (Play, Plan, Map, System), Play the default, one visible at a time, view state in the URL fragment, no document scroll at the default size - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
