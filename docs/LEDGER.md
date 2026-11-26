@@ -75,6 +75,67 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1414 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1414 STAYS OPEN: landing stamps paragraph in OPERATIONS 10.8, one New files spelling and the annex landing pointer
+Verification: `docs/OPERATIONS.md` section 10.8 (its `**Landing stamps.**` paragraph), `docs/item_notes/wave-plan.md`
+(the New files cell of every slice row, and the last bullet of its Pointers block), plus
+`tests/test_docs_citations.py`, `tests/test_doc_sweep.py` and `tests/test_ledger_entry_shape.py`. This record closes
+nothing.
+SCOPE. Plan key U-143, one part, wave W0b merger track, landed by the session 163 merger in three commits with main's
+HEAD equal to its remote-tracking ref, no pre-push suite running, and before the session's /done began. The first two
+are the frozen builder candidates, carried over with their messages kept whole: "docs(CS-1414): landing stamps
+paragraph in OPERATIONS 10.8" (slice S1, docs/OPERATIONS.md only) and "docs(CS-1414): one spelling for New files;
+landing pointer" (slice S2, docs/item_notes/wave-plan.md only). Resolve each with `git log main --fixed-strings
+--grep` on its subject, which prints one hit; not with `--all`, because the builder worktree branches still hold the
+candidates under the same subjects and `--all` prints two. Each landed commit and its candidate are equal by content
+for its file, and neither file changed between its candidate's parent and the landing base, so both carries are
+content-exact. This record is a third merger commit that writes docs/LEDGER.md and nothing else.
+LANDED: S1, one paragraph in section 10.8 of docs/OPERATIONS.md, lead-in `**Landing stamps.**`, after the six
+paragraphs of the wave runbook and above 10.9, nothing renumbered; its added lines are the ruled G4 text, 18 lines
+byte-equal, plus one blank. S2, 67 slice rows of the wave-plan annex changed, every change in the New files cell only:
+each listed file respelled to the directory-and-stem form of the leaves' Write-list field, a stem that begins with
+test_ written as test-<rest>, and the landed CS-1261 row respelled to its real ADR stem under `docs/adr/`, tracked on
+main (ruling G10); plus one new bullet, the last of the Pointers block, the ruled G14 text
+verbatim, naming `docs/OPERATIONS.md` section 10.8 by its heading, its Landing stamps paragraph and the section 2
+stamp command.
+ACCEPTANCE, graded by ruling S163-R6 on the filed leaf clauses, each measure re-read at the landed tree unless marked.
+Clauses 1 and 2, by the frozen checker (GATES below): differences 0, empty cells 0, leaf and annex new files equal,
+listed as new but tracked at the base 0, named by two slices 0, spelling faults 0. Clause 3's teeth, from the builder
+logs the adjudicator read and did not re-run: one cell blanked prints empty cells 1, one file name removed prints
+differences 1, and the spelling plant reddens `tests/test_docs_citations.py` and its revert is green. Clause 4: one
+pointer bullet, and `grep -c "provenance_stamp" docs/item_notes/wave-plan.md` prints 0. Clause 5: `grep -c -F` on
+docs/OPERATIONS.md prints 1 for "**Landing stamps.**", 1 for "pushes blocked by the provenance census" and 1 for
+"briefs carrying the standing lines unchanged", each 0 at the landing base. Clause 7's negative, shown once in a
+scratch clone and never in the main checkout: an uncaught exception rendering planted in one module reddened
+`tests/test_exception_rendering.py`, and the restore read back green. Clause 9: below.
+OWED, hence NOT CLOSED: clause 6, clause 7's census run and clause 8, at the first group landed after this unit that
+creates a tracked file and at that wave's end, in its wave-end record. The item's ROADMAP.md line and its leaf
+section in docs/item_notes/phase7.md stay, both unedited.
+VERDICTS: adversary A1 (the landed text against the ruled texts) and adversary A2 (clause 7's negative) both returned
+NOT REFUTED; graded LAND, not closed, by ruling S163-R6, a distinct adjudicator that planned, built and reviewed no
+part of the item, which also specified this record. The runner-up (do not land: S1 was cut before the CS-1261 close
+commit, against ruling G2's one-common-base order) lost: docs/OPERATIONS.md is identical between
+S1's base and the landing base, so S1's diff is base-independent, and the base-sensitive grade, the CS-1261 exemption,
+is S2's, cut after that close and verified.
+CLAUSE 9 at this commit's tree: `git diff --stat` from the landing base (main's tip before the first commit of this
+unit) to this commit over tools, tests, .githooks and CLAUDE.md prints nothing; the docs/OPERATIONS.md diff is one
+hunk with no removed line, every added line in the Landing stamps paragraph; non-ASCII 0 and CR 0 in both landed
+files.
+RESIDUALS: A1's verdict file carries no probe detail; clause 7's negative re-ran 3 of its 13 files after the restore,
+not the whole set; the S0 checker, S2's fix list and A1 all read the annex through one normaliser, a shared blind spot
+partly covered by `tests/test_docs_citations.py`, an independent reader, re-run green below.
+GATES on this commit's tree, from the repo root on the .venv interpreter, no whole suite: `python tools/drift_guard.py`
+exit 0, 11 guards, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN; `python tools/doc_budget.py` exit 0, VERDICT PASS, 43
+measured, 0 over budget; `python -m pytest` over tests/test_docs_citations.py, tests/test_citation_guard_shapes.py,
+tests/test_ledger_entry_shape.py, tests/data/test_item_notes_index.py, tests/test_doc_sweep.py,
+tests/test_pointer_claims.py and tests/test_sha_citation_gate.py with `-q -n 4 -p no:cacheprovider`, exit 0, 1001
+passed; the frozen checker
+<sidecars>/CS/Scratch/s163/cs1414/s0/check1414.py, an untracked scratch tool whose sha256
+d7799f8e987087bb6550854f90306b75153261ca458e8287d4aa52aa80043e7c was read back equal to its witness first, run as
+`python -B -I` with `--repo` the main checkout and `--base` this commit: exit 0, slices 552, empty cells 0, leaf new
+files 31, annex new files 31, differences 0, listed as new but tracked at the base 0, named by two slices 0, landed
+rows exempt 2, both verified by a LEDGER heading, spelling faults 0; `python tools/precommit_gate.py --staged` exit
+0. Not pushed.
+
 ### 2026-11-25 - CS-454 - NOT A COMPLETION RECORD. CS-454 STAYS OPEN: part CS-454.1 LANDED - the four remaining account-directory redaction defects repaired in clockspeed/data/locate.py
 Verification: `tests/save/test_workdir.py::test_the_refusal_names_no_hex_account_directory_under_a_junctioned_save_root`,
 `tests/save/test_workdir.py::test_the_refusal_names_no_account_directory_that_is_itself_a_link_to_another_name`,
