@@ -9566,6 +9566,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 160 - archived 2026-11-25 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 160 - 2026-11-19 - THE PLAN adopted and wave 0's W0a run to completion; the session 159 push landed and CS-1404 closed
+
+- Shipped: CS-1404 (the secret-sweep blob floor counts distinct tree blobs), CS-1406 (the open-row disposition sweep, re-grade FINAL), CS-914 (per-write staging names, then a 10 s retry budget on the pin replace) and CS-1248.1 (unit-tagged exact Quantity, CS-1248 clauses 1 and 2) closed; the twelve-close wave 0 sweep; CS-913.1 PREP recorded with CS-913 still gated; U-151 graded MET; CS-1405 and CS-1407 filed in BACKLOG; the U-145 frozen-file pre-screen docket (not a grant). Detail in docs/LEDGER.md.
+- In flight: nothing dirty. W0b NOT STARTED: U-138.1 is the next merger unit, then U-158's waiting citation line, U-138.2 and the wave 0 exit record. QUEUE_STOP is absent and no lane runs. CS-1366's closing read is due on or after 2026-11-19 18:48:37 local and was not done. CS-1334 still waits on host RAM and U-152.
+- Decisions: no ADR. The wave 0 rulings are in docs/LEDGER.md and THE PLAN's rulings; the hand-off's wave 0 block carries the stop point.
+- Surprises: the session 159 push was red on test_secret_sweep because a depth-1 CI checkout holds fewer blobs than the tracked paths it counted (CS-1404). write_pin's five instant retries were spent at once under load, so a concurrent replace still escaped after the CS-914 close. The CS-913.1 tests pushed test_world.py over the tests-tree size cap. No spike contradicted BOOTSTRAP.md.
+- Failed paths: counting tracked paths as the secret-sweep blob floor; a fixed retry count with no time budget for the pin replace.
+- Next action: read the remote ref against this HEAD by full SHA, CI tier1 for that SHA and this ritual's timing record; then THE PLAN's wave 0 W0b from U-138.1.
+
 ## Session 159 - archived 2026-11-25 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 159 - 2026-11-19 - planning only: THE PLAN delivered, no item closed, the /done push blocked by one red test
