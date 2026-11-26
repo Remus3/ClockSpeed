@@ -75,6 +75,134 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1413 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1413 STAYS OPEN: the WAVE STATE stanza and its rule line written by the session 163 /done, and that ritual's steps 0 to 6
+Verification: `CS-NEXT-SESSION.txt` (the eight-line stanza directly under its next-action heading and the one "- WAVE
+STATE:" line in its BRIEF RULES AND TRAPS block), plus
+`tests/test_ledger_entry_shape.py::test_no_dated_record_sits_outside_the_entries_section`,
+`tests/test_citation_guard_shapes.py`, `tests/test_done_ritual_arms.py` and `tools/drift_guard.py`. This record closes
+nothing.
+SCOPE. Plan key U-142, annex row W0b-M10 on the wave W0b merger track, slice S3, applied inside the session 163 /done
+under the gap rulings G1 to G19 of a distinct adjudicator (S0) from the frozen deliverables of the scratch builder
+(S1), all in the sidecar Scratch folder s163/cs1413: the checker stanza_check.py, the template stanza_template.txt and
+the rule line rule_line.txt. Their sha256 values, read back before use equal to the frozen ones, are
+deab2ec2ab8e58574d9cd6e28bc0df45834da0368e08587d72af4bde4303bd73,
+afdd6436946e15df16dae308058f1f8da678ee1bd2653f95760f3c635f7cf320 and
+f709ab7ad58e452eaa9b884c341d63352c9ec46f2204a33c8575acadcf077a06, in that order. The rule line is written verbatim
+from rule_line.txt; the template fixed the form only, and every one of the eight values was derived from the tree at
+this /done (ruling G17). The ROADMAP.md line and the leaf section in docs/item_notes/phase7.md stay, both unedited
+(G12, G14).
+CLAUSE 1, both prints verbatim (G2). Planning, the scratch builder's read against the session 162 hand-off:
+"CS-NEXT-SESSION.txt 23744 + 208 + 240 = 24192 / 25000". Binding, the frozen checker's room command against this
+/done's whole rewritten body without the stanza and the rule line, the live file re-read for a responder BUILD PIN
+DRIFT line just before (none): "CS-NEXT-SESSION.txt 24426 + 301 + 240 = 24967 / 25000". The supporting grep "S0 RULING
+3" prints 0 at the starting base: the session 159 /done dropped open item 14, which says nothing about freed bytes
+(G12).
+CLAUSE 2: not triggered, D80's route having been applied in full already (the session 156 and 157 decision blocks are
+one line, the report block is one line) - ruling G3. No hand-off block went to docs/history_notes.md, no file was
+created, and archive --apply was not run; this ritual's archive --auto printed "archive skipped". The body fitted by
+tightening carried text in place.
+CLAUSES 3, 5 AND 8, THE SELF-CHECK (G15: it grades nothing). The frozen checker, run as python -B -I with --repo the
+main checkout passed explicitly, on the written hand-off: "stanza lines 8, bytes 301 (max 800), labels ok, position
+ok", "rule line bytes 240 (max 240), in BRIEF RULES block", checks 19/19 ok, exit 0. grep -c "^WAVE STATE - " and grep
+-c "^- WAVE STATE:" each print 1; the file is 24967 bytes with 0 bytes above 0x7f and 0 CR. The file was written by a
+temp file beside it and an atomic replace, re-read for a BUILD PIN DRIFT line before the replace (none) - ruling G16.
+THE DERIVED VALUES (G4, G8, G9, G17). WAVE W1 and NEXT WAVE W2 (G4: wave 0 ended; the overflow units stamp W0b and run
+beside wave 1 group 1). PHASE entry (G9: the least-advanced step of the started slices, here CS-1415's, stopped with
+nothing built). LANDED NOT CLOSED, by content over the W0b and W1 annex rows that have no closure record: CS-1409
+(parts 1 to 6), CS-1411, CS-1412, CS-1413 (this commit), CS-1414, CS-1419 (part 1) and CS-454 for its part CS-454.1 -
+the part id has no ROADMAP.md line, so the checker's unknown-id test refuses it, and the stanza names the item. IN
+FLIGHT: CS-1415, per ruling S163-R7, named in words; its builder branch is the kept worktree-agent branch whose tip is
+main's commit "docs(CS-1414): the landing record - NOT A COMPLETION RECORD", with nothing committed on it; the unit's
+CHECK script and logs are in the sidecar Scratch folder s163/cs1415/s1. The kept refs are not wave state (G8). PUSH
+pending (G9). LANE none: no lane is live.
+THE BRANCH DECISION (this ritual's, taken and recorded under FLEET item 1): the step 6 worktree reap removed CS-1415's
+builder worktree and, the branch being merged by ancestry, deleted the branch too. Decision: re-create it at the same
+tip, a ref holding no content. Alternatives: leave it deleted and write IN FLIGHT none (contradicts S163-R7 and the
+track line it orders verbatim); name the unit in flight with no branch (fails clause 5's in-flight test at the next
+entry). Why: the session's instruction keeps every agent branch made this session among the kept refs, and the
+restored ref lets S4's git branch --list test read the stanza true; no work was ever on the branch.
+CLAUSE 6 AND THE NEXT SLICE (G5). The stanza's wave is W1; the next slice is the CS-1415 fill-row re-placement
+(S163-R7: planner, distinct adjudicator, filing writer), then CS-1415 from its Parts step 3. The red-first negative
+was shown this session by a read-only agent that wrote nothing in the unit (S2) on a scratch copy listing CS-1416
+under LANDED NOT CLOSED: "stanza differs: CS-1416 is closed", with the slice the tree implied named. S4, one agent
+distinct from S0 to S3 at the session 164 start, does the binding positive and negative with the same frozen script
+after checking its sha256, and verifies IN FLIGHT with git branch --list and LANDED NOT CLOSED by content (G13 to
+G15).
+CLAUSE 7: PRE-EMPTED, never MET by this unit (G5). No wave ended this session: wave 1 group 1 ends with CS-1366's
+read, which cannot run before 2026-11-26 15:29 local. The first wave-end record, the dated 2026-11-24 WAVE 0 END
+record, was written by the wave 0 exit under D-P4-26 before this unit landed; the session 164 adjudicator rules
+whether that suffices. Future wave-end headings use the annex id, "WAVE W1 END" (G6); the past records are never
+edited.
+CLAUSE 9 (G7, per commit): the commit carrying this record and the stanza touches none of CLAUDE.md,
+.claude/commands/done.md, docs/history_notes.md and docs/OPERATIONS.md; this ritual's wake-up relocation into
+docs/history_notes.md is its own earlier commit.
+G11 NOT APPLIED: D-P4-26's "the PLAN line keeps only the file name and the merger-track unit" was not applied, because
+HEAD never adopted that one-line PLAN form and the next-action block holds live state (the track order, TRIM OWED, the
+builders, the held units). Carried as a residual for a distinct adjudicator.
+G12 CORRECTED POINTERS, at the session 162 hand-off (the session 163 starting base): the next-action heading line 30;
+the first-act reads lines 33 to 47; the size rule line 236; the tracked-line bans in THE 159 BASE lines 214 to 241;
+done.md step 6 lines 192 to 283; and the id-less wave-end precedent is the dated 2026-11-24 WAVE 0 END record (line
+947 of docs/LEDGER.md at that base), not the leaf's "line 2745", which now holds unrelated prose.
+RULINGS BY ROLE: S0, a distinct adjudicator that wrote no part of the plan or a candidate, ruled G1 (this /done is the
+sole writer of the stanza and rule line), G2 (two prints, the binding one against the rewritten body), G3 (clause 2
+not triggered), G4 (W1, W2), G5 (no wave-end record; clause 7 PRE-EMPTED), G6 (annex-id wave-end headings), G7 (clause
+9 per commit), G8 (IN FLIGHT derived, in words), G9 (PHASE the least-advanced step; PUSH pending), G10 (one physical
+line each, LF counted), G11 (no structural cut to the next-action block), G12 (no leaf edit; corrected pointers here),
+G13 (S4 binding, one agent), G14 (landed not closed this session), G15 (the checker a self-check; sha256 verified
+before use), G16 (temp file and atomic replace), G17 (values re-derived), G18 (the closed test a conjunction) and G19
+(this record's shape), each with its alternatives and why in its rulings file.
+VERDICTS BY ROLE: S2, the read-only dry-resume agent, showed the negative half (phase, the landed-not-closed set,
+push, lane and next wave unanswerable from the old hand-off; in flight contradicted). The oracle adversary on the
+checker, round 3 at the frozen checker: 151 mutants applied, 131 killed, 20 surviving, of which 3 are equivalent and 4
+trivial for real inputs.
+RESIDUALS OF THE CHECKER, recorded and not repaired: RES-1, a 7-plus character all-digit or all-letter SHA passes the
+hex check; RES-2, a blank line between the stanza and item 0 counts toward the 8; RES-3, the rule-content test is
+pattern-bound, so a faithful paraphrase can fail; RES-4, it does not verify IN FLIGHT or landed-by-content (S4 does);
+RES-5, its gitignore matcher is case-sensitive and treats a directory-only pattern as matching a same-named file
+(stricter only); RES-6, tools/freeze_witness.py refuses the scratch folder, so the sha256 values stand in for the
+freeze, a G15 deviation. The oracle adversary's round 3 also left 12 real untested survivors (an unreadable annex or
+scopes file fails closed with no case, the index versus HEAD gitignore blob, GIT_DIR not cleared, the CLI default repo
+and glob-matcher edge cases) and lax rule-line negations: three negated rule lines pass the content test.
+OTHER SESSION 163 FACTS NOT RECORDED ELSEWHERE: the session's first push was blocked by
+`tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits` on a hex run joined to letters in
+tests/test_make_cert.py (the RFC 2253 nameopt literal), fixed by splitting the literal in "test(CS-1261): keep the RFC
+2253 nameopt out of the SHA citation gate", resolved on main by that subject; the next two pushes landed, each
+pre-push 20048 passed, 15 skipped, and CI read green on the tip. Under ruling S163-R1 the session 162 CS-1412
+adversary orphans were killed, one a runaway, and their progress rows set to failed (orphaned); the empty sidecar
+scratch folder adv-u138-1-wt is still busy. A python process running since 2026-11-24 21:26 local with over 86,000 s
+of CPU is a further orphan, carried to the hand-off for an adjudicated kill.
+THE SESSION 163 /DONE, STEPS 0 TO 6. Step 0: started 2026-11-25 21:33:46 local; the CS-700 window signal read CLOSED
+(HEAD has one parent, and its own commit touches docs/LEDGER.md only); closed this session CS-1410 and CS-1261, tier
+2 the highest; git status clean at the start; no outbox note authored; the queue stop file the session placed was
+removed and read back absent. Step 1, from the repo root on the .venv interpreter, no whole suite: python -m mypy
+exit 0, no issues in 492 source files; python -m ruff check . exit 0; python -m ruff format --check . exit 0, 475
+files formatted; python -m pytest -q -n 4 over tests/data/test_locate.py, tests/save/test_workdir.py,
+tests/surface/test_server.py, tests/surface/test_config.py, tests/test_make_cert.py, tests/test_hook_env_echo.py,
+tests/test_citation_tables.py, tests/test_redaction_scope.py, tests/test_assertion_rendering.py,
+tests/test_chained_cause_census.py, tests/test_pathless_clone_agreement.py, tests/test_sha_citation_gate.py,
+tests/ops/test_lane_scope.py and tests/ops/test_scope_binding.py exit 1, 2871 passed, 1 failed, 1 skipped (the chmod
+arm this platform cannot measure); the failure,
+`tests/test_make_cert.py::test_verify_env_verdict_agrees_with_its_exit_code_and_names_openssl`, re-run alone with
+the .venv interpreter first on PATH and CLOCKSPEED_PYTHON set, exit 0, 1 passed: the verify_env row for the hooks'
+interpreter ladder reads MISSING when another python leads PATH, an environment fact and not a code defect. Step 2:
+this record. Step 3: ROADMAP.md unchanged by the ritual (the CS-1410 and CS-1261 lines left with their close
+commits; CS-1441 is in BACKLOG.md; no new id). Step 4: the session 163 wake-up entry added and the session 160 entry
+relocated verbatim to docs/history_notes.md. Step 5: GATES below; memory_sync not run, no memory source changed.
+Step 6: the hand-off rewritten whole at 24967 bytes with SESSION: 164; the board render --final exit 0, silent, the
+tree not opted in; the reap applied, 7 removed, 1 kept (lane-0), 0 listed; archive --auto skipped under 27648 bytes.
+GATES on this commit's tree, from the repo root on the .venv interpreter with it first on PATH and CLOCKSPEED_PYTHON
+set, no whole suite: python tools/drift_guard.py exit 0, 11 guards, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN; python
+tools/doc_budget.py exit 0, VERDICT PASS, 43 measured, 0 over budget; python tools/sha_citation_gate.py exit 0, PASS;
+python -m pytest -q -n 4 -p no:cacheprovider over tests/test_ledger_entry_shape.py,
+tests/test_citation_guard_shapes.py, tests/test_docs_citations.py, tests/test_citation_tables.py,
+tests/test_tier1_budget.py, tests/test_done_ritual_arms.py, tests/test_build_pin_watch.py,
+tests/ops/test_build_pin_watch_tick.py, tests/test_assertion_rendering.py, tests/test_chained_cause_census.py,
+tests/test_pathless_clone_agreement.py, tests/test_sha_citation_gate.py, tests/test_doc_sweep.py,
+tests/data/test_item_notes_index.py, tests/test_dated_headings.py, tests/test_pointer_claims.py,
+tests/test_scaffold.py, tests/test_disposition_sites.py, tests/test_bare_path_citations.py and
+tests/test_readme_audit.py exit 0, 3525 passed, 0 failed, 0 skipped. All four were run once before this paragraph was
+written and once after it, with the same verdicts. The push is pending at write time.
+
 ### 2026-11-25 - CS-1414 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1414 STAYS OPEN: landing stamps paragraph in OPERATIONS 10.8, one New files spelling and the annex landing pointer
 Verification: `docs/OPERATIONS.md` section 10.8 (its `**Landing stamps.**` paragraph), `docs/item_notes/wave-plan.md`
 (the New files cell of every slice row, and the last bullet of its Pointers block), plus
