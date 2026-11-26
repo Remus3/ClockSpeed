@@ -96,6 +96,7 @@ Status line to point at the successor and leave every other word of it untouched
 | [0024](0024-the-credential-scan-population-boundary.md) | The credential-scan population boundary is publication, not location | `accepted` |
 | [0025](0025-the-tier-3-flip-checks-run-locally.md) | The tier-3 flip checks run locally | `accepted` |
 | [0026](0026-the-root-moves-to-e.md) | The root moves to E:, and a junction stays at C: | `accepted` |
+| 0027 | RESERVED for CS-1261 - The loopback TLS subject and refusal logging decision | `reserved` |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
 been written, in the order the spikes ran: S8, then S4, then S6. These three are the spikes
