@@ -1475,6 +1475,11 @@ SITE_SCOPED_MEMBERS: Final = {
         frozenset({"Path.resolve"}),
         "the repository root, from this module's own absolute path",
     ),
+    ("clockspeed/data/locate.py", "_resolved_forms"): (
+        frozenset({"Path.resolve"}),
+        "the REDACTOR: a linked save root or account directory is also remembered by its "
+        "target; matched as a needle, never rendered",
+    ),
     ("clockspeed/data/locate.py", "_steam_library_paths"): (
         frozenset({"Path.group"}),
         "re.Match.group: the scanner cannot tell it from PosixPath.group, which returns "
