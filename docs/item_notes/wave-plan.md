@@ -21,6 +21,7 @@ row per slice, and pointers; every rule it depends on is owned elsewhere and nam
 - Each row's Write-list cell: `docs/item_notes/wave-plan-write-lists.md`, by its Slice cell.
 - Each row's hub-chain place: its `chain` cell, keyed by `### Hub files` below; a leaf's
   `Hub chains` line is its filing-time per-wave order and is not read for a place.
+- The wave runbook - wave size (B, G and the capacity cap), the one push and the exit record: `docs/OPERATIONS.md` section 10.8.
 
 Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning session 159, sha256 values in their docs/LEDGER.md copy record.
 

@@ -75,6 +75,52 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1411 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1411 STAYS OPEN: the wave runbook landed as docs/OPERATIONS.md section 10.8 and its annex pointer
+Verification: `docs/OPERATIONS.md` section 10.8 (its six bold lead-in paragraphs), `docs/item_notes/wave-plan.md`
+(the last bullet of its Pointers block), plus `tests/test_docs_citations.py`, `tests/test_doc_sweep.py` and
+`tests/test_ledger_entry_shape.py`. This record closes nothing.
+SCOPE. Plan key U-140, one part, landed by the session 163 merger in two commits, after the citation pin fix and
+before the session's /done began, with no pre-push suite running. The runbook is its own commit, docs/OPERATIONS.md
+only, on main under the exact subject "docs(CS-1411): add OPERATIONS 10.8, the wave runbook", carried over from the
+frozen builder candidate with its message kept whole. Resolve it with `git log main --fixed-strings --grep` on that
+subject, which prints one hit; not with `--all`, because a builder worktree branch still holds the frozen candidate
+under the same subject and `--all` prints two. The landed commit and the candidate are equal by content for
+docs/OPERATIONS.md. The annex pointer and this record are a second merger commit that writes
+docs/item_notes/wave-plan.md and docs/LEDGER.md and nothing else.
+LANDED: section 10.8 of docs/OPERATIONS.md, after 10.7 and above 10.9, nothing renumbered, six paragraphs with the
+six bold lead-ins in clause 1's order (Sizing; B and G move only on an exit record; The one push; The blocked-wave
+rule; The exit record; Slice brief); and one new bullet, the last of the Pointers block of the wave-plan annex,
+pointing at `docs/OPERATIONS.md` section 10.8 for wave size (B, G and the capacity cap), the one push and the exit
+record.
+ACCEPTANCE, graded on the filed leaf clauses: clauses 1 to 6, 8, 9 and 11 MET, and clause 7's runbook sentence MET
+(it names the last key by position and restates neither the band figure nor the multiplier).
+OWED at the first wave end after landing (W1's, not this session): clause 7's ledger value and clause 10, the exit
+record carrying every key of clause 6 in order and that wave's push read back. Hence NOT CLOSED (ruling G4): the
+item's ROADMAP.md line and its leaf section in docs/item_notes/phase7.md stay, both unedited.
+CAPACITY RULING (clause 2), by the session 163 distinct adjudicator before the runbook text was written: 12 caps C.
+C = B x G never exceeds 12 slices, G becomes 4 only while B is at most 3, and at B 4 G stays 3; source D99(6). The
+ruling is recorded verbatim as one paragraph of the landed commit's body, and the Sizing paragraph states the cap
+once. THE PLAN's D-P4-23 and D-P4-24 already carried that reading, and the session 163 ruling adopts it. The leaf's
+"ruled by no decision" in clause 2 is left unedited (ruling G10): the leaf and the spec were both written without
+D-P4-23, and the fix is this record, not a rewording of the acceptance.
+VERDICTS: the counts adversary and the guards and behaviour adversary both returned NOT REFUTED; graded LAND, not
+closed, by ruling S163-R4, a distinct adjudicator that authored no candidate. The runner-up (do not land: clause 11
+not green at the candidate, two red tests in tests/test_docs_citations.py) lost: both reds were byte-identical at
+the candidate's parent, came from the locate.py line-pin drift of CS-454.1, and this landing ran only after that
+separate fix landed and `tests/test_docs_citations.py` read green on main (exit 0, 483 passed) before the runbook
+commit.
+READ BACK after the runbook commit: `git log -1 --format=%B` holds the capacity ruling as one body line,
+byte-identical to the ruling's quoted sentence once its wrapped lines are whitespace-joined (compared by script);
+the content diff of docs/OPERATIONS.md against the frozen candidate is empty; porcelain empty.
+CLAUSE 9 at this commit's tree: `grep -c -E "60 planned|11 h|6 GB|0\.33" docs/item_notes/wave-plan.md` prints 0,
+and the new bullet holds `docs/OPERATIONS.md` section 10.8.
+GATES on this commit's tree, from the repo root on the .venv interpreter, no whole suite: `python tools/drift_guard.py`
+exit 0, 11 guards, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN; `python tools/doc_budget.py` exit 0, VERDICT PASS, 43
+measured, 0 over budget; `python -m pytest` over tests/test_docs_citations.py, tests/test_citation_guard_shapes.py,
+tests/test_ledger_entry_shape.py, tests/data/test_item_notes_index.py, tests/test_doc_sweep.py,
+tests/test_citation_tables.py and tests/test_pointer_claims.py with `-q -n 4 -p no:cacheprovider`, exit 0, 865
+passed; `python tools/precommit_gate.py --staged` exit 0. Not pushed.
+
 ### 2026-11-25 - CS-1410 - CLOSED: the README disclaimer names Coffee Stain Studios and Coffee Stain Publishing and ends with one generic trademark sentence
 Verification: `README.md` (the closing paragraph of `## License`) plus
 `tests/test_readme_audit.py::test_readme_is_under_the_line_budget`, `tests/test_docs_citations.py` and
