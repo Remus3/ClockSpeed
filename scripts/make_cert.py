@@ -18,7 +18,7 @@ part of the git toolchain - does the minting.
 
 OPENSSL IS NEVER INVOKED THROUGH A SHELL, AND THAT IS MEASURED RATHER THAN
 STYLISTIC. Through Git Bash, MSYS path conversion rewrites the bare
-``/CN=clockspeed-local`` argument into an absolute Windows path before openssl
+``/CN=clockspeed-local-<hex>`` argument into an absolute Windows path before openssl
 ever sees it, and openssl rejects the result. Every call below passes a list
 argv with ``shell=False``, which is immune. A future reader hitting a quoting
 problem must not "fix" it with ``shell=True``; tests/test_make_cert.py pins the
@@ -110,6 +110,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -163,9 +164,30 @@ OPENSSL_TIMEOUT_SECONDS = 120
 #: browser would reject is a trap waiting for the day the shell enforces one.
 CERT_DAYS = "397"
 
-#: The subject. A common name is required and is not what gets verified - the
-#: subject alternative name below is.
-CERT_SUBJECT = "/CN=clockspeed-local"
+#: The readable head of the subject. A common name is required and is not what
+#: gets verified - the subject alternative name below is.
+CERT_SUBJECT_PREFIX = "/CN=clockspeed-local-"
+
+#: Random bytes in each subject (CS-1261): 16 of them is 32 hex characters, so
+#: the whole common name is 49 characters, under the 64 an X.509 CN may carry.
+CERT_SUBJECT_RANDOM_BYTES = 16
+
+
+def mint_subject() -> str:
+    """Mint the subject for ONE certificate: the fixed head plus a random tail.
+
+    CS-1261: two generated certificates differ in subject. The tail comes from
+    :mod:`secrets` and from nothing else, so it carries no machine, account or
+    user name and is not derived from anything the operator can be identified
+    by. Varying it is safe because the shell pins the certificate itself and
+    checks no subject name, and the subject alternative name - the load-bearing
+    one - is unchanged.
+
+    Returns:
+        The ``-subj`` argument: the fixed head and 32 hex characters.
+    """
+    return CERT_SUBJECT_PREFIX + secrets.token_hex(CERT_SUBJECT_RANDOM_BYTES)
+
 
 #: The extensions, in the order openssl receives them. THE SAN IS THE
 #: LOAD-BEARING ONE and it carries both spellings of this machine: the name a
@@ -248,7 +270,7 @@ def cert_argv(cert_path: Path, key_path: Path, openssl: str = "openssl") -> list
         "-out",
         str(cert_path),
         "-subj",
-        CERT_SUBJECT,
+        mint_subject(),
     ]
     for extension in CERT_EXTENSIONS:
         argv += ["-addext", extension]

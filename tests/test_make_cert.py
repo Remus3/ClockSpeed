@@ -323,7 +323,6 @@ def test_cert_argv_carries_the_bare_flag(flag: str) -> None:
     [
         ("-newkey", "rsa:2048"),
         ("-days", "397"),
-        ("-subj", "/CN=clockspeed-local"),
     ],
 )
 def test_cert_argv_carries_the_valued_flag(flag: str, value: str) -> None:
@@ -337,6 +336,117 @@ def test_cert_argv_carries_the_valued_flag(flag: str, value: str) -> None:
     argv = make_cert.cert_argv(CERT_STUB, KEY_STUB)
 
     assert _sole_value(argv, flag) == value
+
+
+#: CS-1261. The shape of the per-mint subject: a readable prefix, then 128 random
+#: bits as hex. Written out here rather than read from the module so a change of
+#: shape is a deliberate edit to this literal and not a silent one.
+SUBJECT_SHAPE = re.compile(r"^/CN=clockspeed-local-[0-9a-f]{32}$")
+
+#: Synthetic stand-ins for the identity a machine carries. None is a real value:
+#: the arm plants them into the environment and asserts the subject holds none.
+SYNTHETIC_ACCOUNT = "zqxjsyntheticaccount"
+SYNTHETIC_MACHINE = "zqxjsyntheticmachine"
+SYNTHETIC_HOME = "zqxjsynthetichome"
+
+
+def _subject_of(argv: list[str]) -> str:
+    """The ``-subj`` value of a rendered command, or an empty string.
+
+    Args:
+        argv: The rendered command.
+
+    Returns:
+        The subject, or "" when it is absent or repeated.
+    """
+    return _sole_value(argv, "-subj") or ""
+
+
+def test_cert_argv_subject_is_a_per_mint_random_common_name() -> None:
+    """CS-1261 clause 4: the subject has the shape one mint produces.
+
+    The pin this replaces compared the subject to one fixed string, which is the
+    very property the clause forbids.
+    """
+    subject = _subject_of(make_cert.cert_argv(CERT_STUB, KEY_STUB))
+
+    shaped = SUBJECT_SHAPE.match(subject) is not None
+    assert shaped, "the rendered subject is not clockspeed-local- plus 32 lowercase hex digits"
+
+
+def test_two_rendered_commands_carry_different_subjects() -> None:
+    """CS-1261 clause 4, pure half: two renders never share a subject."""
+    first = _subject_of(make_cert.cert_argv(CERT_STUB, KEY_STUB))
+    second = _subject_of(make_cert.cert_argv(CERT_STUB, KEY_STUB))
+
+    assert first != "", "the first render carries no subject at all"
+    assert second != "", "the second render carries no subject at all"
+    differ = first != second
+    assert differ, "two mints rendered the same subject"
+
+
+def test_the_subject_holds_no_account_machine_or_home_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CS-1261 clause 4, negative half: the random value is the only variable part.
+
+    The identity variables are planted with synthetic values, so a subject that
+    started to read one would carry the plant and be seen. The assertion is a
+    count bound to a scalar: pytest renders the asserted expression.
+    """
+    monkeypatch.setenv("USERNAME", SYNTHETIC_ACCOUNT)
+    monkeypatch.setenv("USER", SYNTHETIC_ACCOUNT)
+    monkeypatch.setenv("COMPUTERNAME", SYNTHETIC_MACHINE)
+    monkeypatch.setenv("HOSTNAME", SYNTHETIC_MACHINE)
+    monkeypatch.setenv("USERPROFILE", SYNTHETIC_HOME)
+    monkeypatch.setenv("HOME", SYNTHETIC_HOME)
+    subject = _subject_of(make_cert.cert_argv(CERT_STUB, KEY_STUB))
+
+    planted = (SYNTHETIC_ACCOUNT, SYNTHETIC_MACHINE, SYNTHETIC_HOME)
+    leaked = sum(subject.count(value) for value in planted)
+    assert subject != "", "the render carries no subject, so a zero count proves nothing"
+    assert leaked == 0, "the subject carries a planted identity value"
+
+
+def _subject_read_back(cert_path: Path) -> str:
+    """The subject of a real certificate, as openssl prints it.
+
+    Args:
+        cert_path: The certificate to read.
+
+    Returns:
+        The subject field, or "" when openssl could not read it.
+    """
+    finished = subprocess.run(
+        ["openssl", "x509", "-in", str(cert_path), "-noout", "-subject", "-nameopt", "RFC2253"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        shell=False,
+        check=False,
+    )
+    if finished.returncode != 0:
+        return ""
+    return finished.stdout.strip().partition("subject=")[2]
+
+
+def test_two_generated_certs_differ_in_subject(tmp_path: Path) -> None:
+    """CS-1261 clause 4, live half: two real certificates, two subjects.
+
+    Both subjects are READ BACK from the minted files, not from what the script
+    meant to write, and each must carry the one-mint shape.
+    """
+    first_cert, _first_key = cert_pair(tmp_path / "first")
+    second_cert, _second_key = cert_pair(tmp_path / "second")
+
+    first = _subject_read_back(first_cert)
+    second = _subject_read_back(second_cert)
+
+    shaped = [re.fullmatch(r"CN=clockspeed-local-[0-9a-f]{32}", value) for value in (first, second)]
+    both_shaped = all(match is not None for match in shaped)
+    assert both_shaped, "a certificate subject read back is not the per-mint shape"
+    differ = first != second
+    assert differ, "two generated certificates carry the same subject"
 
 
 def test_cert_argv_writes_the_key_and_the_certificate_where_it_was_told() -> None:

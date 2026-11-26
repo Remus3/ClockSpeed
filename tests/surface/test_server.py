@@ -82,6 +82,7 @@ import subprocess
 import sys
 import threading
 import time
+import types
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler
@@ -2437,8 +2438,8 @@ def test_the_captured_segment_stderr_sweep_finds_a_planted_leak(
     cert, _key = cert_pair
 
     class LoggingTheRequestPath(server.DashboardHandler):
-        def _log(self, template: str, code: int) -> None:
-            del template
+        def _log(self, template: str, code: int, refused: str | None = None) -> None:
+            del template, refused
             sys.stderr.write(f"{self.path} {code}\n")
 
     with serving_handler(cfg, LoggingTheRequestPath, [capture_route()]) as port:
@@ -3452,3 +3453,252 @@ def test_a_body_too_large_or_unframed_closes_the_connection_unread(
     head = answer.split(b"\r\n\r\n", 1)[0].lower()
     assert head.startswith(b"http/1.1 404")
     assert b"\r\nconnection: close" in head
+
+
+# ---------------------------------------------------------------------------
+# CS-1261: refusal reasons are logged server-side, the caller gets one generic
+# refusal, and no query-string token is accepted.
+#
+# The refusal's cause word lives on the log line only. The body stays the one
+# envelope ADR 0012 publishes (``cross_origin_refused``), whatever the cause,
+# and carries no request byte. A 403 is the only status that logs a cause; a
+# 400, 404 or 405 is a reasoned error and keeps the three-value line.
+# ---------------------------------------------------------------------------
+
+#: What an unproven POST leaves on stderr: method, matched TEMPLATE, status, then
+#: the cause word. Spelled out here rather than read from the module so a change
+#: to the form is a deliberate edit to this literal.
+PROOF_REFUSAL_LINE: Final = f"POST {CAPTURE_TEMPLATE} {contract.HTTP_FORBIDDEN} refused=proof"
+
+#: The query keys a bearer-style credential is conventionally carried under.
+TOKEN_QUERY_KEYS: Final = ("token", "access_token", "auth")
+
+#: A synthetic value for those keys. It is a placeholder and no credential.
+QUERY_VALUE_STUB: Final = "zqxjvalue601"
+
+#: How many places the planted leak writes the canary: the path, the query and
+#: the Origin header. The negative control must see all three.
+LEAK_SITES: Final = 3
+
+
+def test_the_refusal_cause_vocabulary_is_the_closed_set_proof() -> None:
+    word = server.REFUSED_PROOF
+    causes = server.REFUSAL_CAUSES
+    assert word == "proof"
+    assert causes == frozenset({"proof"})
+
+
+@pytest.mark.parametrize("headers", UNPROVEN_HEADERS)
+def test_an_unproven_post_logs_its_cause_word_and_nothing_else(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+    headers: Mapping[str, str],
+) -> None:
+    cert, _key = cert_pair
+    with server.serve(cfg, [capture_route(method="POST", mutates=True)]) as running:
+        status, _headers, _body = request(
+            running.server_address[1],
+            f"/api/advice/{PLAIN_ID}/state",
+            cert,
+            method="POST",
+            headers=headers,
+        )
+    logged = capsys.readouterr().err.rstrip("\n")
+    assert status == contract.HTTP_FORBIDDEN
+    assert logged == PROOF_REFUSAL_LINE
+
+
+def test_an_unproven_post_answers_the_published_envelope_and_names_no_cause(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    cert, _key = cert_pair
+    expected = contract.encode(
+        contract.forbidden(CAPTURE_TEMPLATE, contract.REASON_CROSS_ORIGIN_REFUSED).payload
+    )
+    with server.serve(cfg, [capture_route(method="POST", mutates=True)]) as running:
+        status, _headers, body = request(
+            running.server_address[1], f"/api/advice/{PLAIN_ID}/state", cert, method="POST"
+        )
+    assert status == contract.HTTP_FORBIDDEN
+    same = body == expected
+    assert same, "the refusal body is not the published envelope"
+
+
+def test_only_a_refusal_logs_a_cause_word(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A 200, a 404, a 405 and a 400 each keep the line they always had."""
+    cert, _key = cert_pair
+    with server.serve(cfg, [capture_route(method="POST", mutates=True)]) as running:
+        port = running.server_address[1]
+        request(port, f"/api/advice/{PLAIN_ID}/state", cert, method="POST", headers=PROOF)
+        request(port, f"/api/advice/{PLAIN_ID}/state", cert)
+        request(port, "/api/nowhere", cert)
+        request(port, f"/api/advice/{PLAIN_ID}/state?a=1&a=2", cert, method="POST", headers=PROOF)
+    logged = capsys.readouterr().err.splitlines()
+    template = CAPTURE_TEMPLATE
+    expected = [
+        f"POST {template} {contract.HTTP_OK}",
+        f"GET {template} {contract.HTTP_METHOD_NOT_ALLOWED}",
+        f"GET {contract.ENDPOINT_UNROUTED} {contract.HTTP_NOT_FOUND}",
+        f"POST {template} {contract.HTTP_BAD_REQUEST}",
+    ]
+    assert logged == expected
+
+
+def test_a_cause_outside_the_closed_set_is_never_written(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``_log`` renders a cause only from :data:`server.REFUSAL_CAUSES`."""
+    bare = types.SimpleNamespace(command="POST")
+    write_log: Callable[..., None] = server.DashboardHandler._log  # noqa: SLF001
+    write_log(bare, CAPTURE_TEMPLATE, contract.HTTP_FORBIDDEN, "zqxjcause")
+    write_log(bare, CAPTURE_TEMPLATE, contract.HTTP_FORBIDDEN, server.REFUSED_PROOF)
+    logged = capsys.readouterr().err.splitlines()
+    expected = [
+        f"POST {CAPTURE_TEMPLATE} {contract.HTTP_FORBIDDEN}",
+        PROOF_REFUSAL_LINE,
+    ]
+    assert logged == expected
+
+
+def drive_refusal_canaries(port: int, cert: Path) -> list[tuple[int, bytes]]:
+    """Refuse four unproven POSTs, each carrying the canary somewhere else.
+
+    Args:
+        port: The listening port.
+        cert: The certificate to trust.
+
+    Returns:
+        One (status, body) per request.
+    """
+    shapes: tuple[tuple[str, dict[str, str]], ...] = (
+        (f"/api/advice/{CANARY}/state", {}),
+        (f"/api/advice/{PLAIN_ID}/state?q={CANARY}", {}),
+        (f"/api/advice/{PLAIN_ID}/state", {"Origin": f"https://{CANARY}.invalid"}),
+        (f"/api/advice/{PLAIN_ID}/state", {"Sec-Fetch-Site": f"cross-{CANARY}"}),
+    )
+    answers: list[tuple[int, bytes]] = []
+    for path, headers in shapes:
+        status, _headers, body = request(port, path, cert, method="POST", headers=headers)
+        answers.append((status, body))
+    return answers
+
+
+def test_no_refused_request_byte_reaches_the_log_or_the_body(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cert, _key = cert_pair
+    with server.serve(cfg, [capture_route(method="POST", mutates=True)]) as running:
+        answers = drive_refusal_canaries(running.server_address[1], cert)
+    written = capsys.readouterr().err
+    refused = sum(1 for status, _body in answers if status == contract.HTTP_FORBIDDEN)
+    assert refused == len(answers), "a canary request was not refused, so it swept nothing"
+    in_log = written.count(CANARY)
+    in_body = sum(body.count(CANARY.encode("ascii")) for _status, body in answers)
+    assert in_log == 0, "a refused request's bytes reached the log"
+    assert in_body == 0, "a refused request's bytes reached the response body"
+
+
+def test_the_refusal_canary_sweep_finds_a_planted_leak(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The negative control: a handler that logs the path and the Origin is seen."""
+    cert, _key = cert_pair
+
+    class LoggingTheRequest(server.DashboardHandler):
+        def _log(self, template: str, code: int, refused: str | None = None) -> None:
+            del template, refused
+            sys.stderr.write(f"{self.path} {self.headers.get('Origin')} {code}\n")
+
+    routes_to_serve = [capture_route(method="POST", mutates=True)]
+    with serving_handler(cfg, LoggingTheRequest, routes_to_serve) as port:
+        drive_refusal_canaries(port, cert)
+    found = capsys.readouterr().err.count(CANARY)
+    assert found >= LEAK_SITES, "the sweep cannot see a logged path, query or Origin"
+
+
+def _spy_routes(pairs: Sequence[tuple[str, str]], seen: list[str]) -> list[contract.Route]:
+    """One recording route per (method, template), each declaring it mutates.
+
+    Args:
+        pairs: The mutating (method, template) pairs to stand in for.
+        seen: Where each call appends the template it answered.
+
+    Returns:
+        The routes.
+    """
+
+    def spy_for(template: str) -> Callable[[Mapping[str, str]], contract.Response]:
+        def handler(parameters: Mapping[str, str]) -> contract.Response:
+            del parameters
+            seen.append(template)
+            return contract.ok(template, {"probe": True})
+
+        return handler
+
+    return [
+        contract.Route(method=method, template=template, handler=spy_for(template), mutates=True)
+        for method, template in pairs
+    ]
+
+
+@pytest.mark.parametrize("key", TOKEN_QUERY_KEYS)
+def test_a_query_string_token_does_not_stand_in_for_the_proof(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    tmp_path: Path,
+    key: str,
+) -> None:
+    """CS-1261 clause 2, a PIN: no credential exists, so none can be admitted.
+
+    Every mutating route the dashboard registers is asked, unproven, with a
+    token in the query. Each is the 403 and none reaches its handler. Proven
+    live by a mutant, not by a red-first run: see the CS-1261 ledger entry.
+    """
+    cert, _key = cert_pair
+    store = tmp_path / "store"
+    store.mkdir()
+    pairs = sorted(server.mutating_routes(_state_routes(store)))
+    pair_count = len(pairs)
+    assert pair_count > 0, "the production table registers no mutating route"
+    seen: list[str] = []
+    statuses: list[int] = []
+    with server.serve(cfg, _spy_routes(pairs, seen)) as running:
+        for method, template in pairs:
+            path = template.replace("<id>", PLAIN_ID) + f"?{key}={QUERY_VALUE_STUB}"
+            status, _headers, _body = request(running.server_address[1], path, cert, method=method)
+            statuses.append(status)
+    refused = sum(1 for status in statuses if status == contract.HTTP_FORBIDDEN)
+    reached = len(seen)
+    assert refused == pair_count, "a token in the query turned a refusal into an answer"
+    assert reached == 0, "a token in the query reached a mutating handler"
+
+
+def test_the_token_pin_control_reaches_the_spy_when_the_proof_is_sent(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """The control for the pin above: the same spies ARE reached with the header."""
+    cert, _key = cert_pair
+    store = tmp_path / "store"
+    store.mkdir()
+    pairs = sorted(server.mutating_routes(_state_routes(store)))
+    seen: list[str] = []
+    with server.serve(cfg, _spy_routes(pairs, seen)) as running:
+        for method, template in pairs:
+            request(
+                running.server_address[1],
+                template.replace("<id>", PLAIN_ID),
+                cert,
+                method=method,
+                headers=PROOF,
+            )
+    reached = len(seen)
+    assert reached == len(pairs), "the spy is not reachable, so the pin above proves nothing"

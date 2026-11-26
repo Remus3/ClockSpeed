@@ -172,6 +172,8 @@ __all__ = [
     "KNOWN_METHODS",
     "MUTATION_PROOF_HEADER",
     "MUTATION_PROOF_VALUE",
+    "REFUSAL_CAUSES",
+    "REFUSED_PROOF",
     "SAFE_METHODS",
     "SERVER_BANNER",
     "STATIC_ROUTES",
@@ -299,6 +301,19 @@ FETCH_SITE_HEADER: Final = "Sec-Fetch-Site"
 
 #: The ``Sec-Fetch-Site`` values a mutating request is admitted with.
 FETCH_SITES_ADMITTED: Final = frozenset({"same-origin", "none"})
+
+#: The cause word a refusal carries on its LOG line (CS-1261), and only there.
+#: The caller is told one thing whatever the cause - the published
+#: ``cross_origin_refused`` envelope of ADR 0012, with no request byte in it -
+#: and the operator reading stderr is told which check refused. A mutating
+#: request without a valid same-origin proof is the one refusal today.
+REFUSED_PROOF: Final = "proof"
+
+#: THE CLOSED SET OF CAUSES A LOG LINE MAY NAME. ``_log`` renders a cause only
+#: when it is a member, so a cause word is always a literal authored in this
+#: file and never a value a request supplied. A later refusal adds its word
+#: here and at its own raise site, and nowhere else.
+REFUSAL_CAUSES: Final = frozenset({REFUSED_PROOF})
 
 #: The largest request body drained off the socket, in bytes. No route reads a
 #: body; one is DISCARDED so it cannot be parsed as the next request on a
@@ -830,19 +845,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     # -- what this module logs instead -------------------------------------
 
-    def _log(self, template: str, code: int) -> None:
+    def _log(self, template: str, code: int, refused: str | None = None) -> None:
         """Write the one log line this server emits.
 
         Three bounded values and nothing else: a method checked against
         :data:`KNOWN_METHODS`, a route TEMPLATE or a filename authored in this
-        file, and an integer status.
+        file, and an integer status. A 403 refusal adds a fourth, ``refused=``
+        and a cause word from :data:`REFUSAL_CAUSES` (CS-1261) - the reason the
+        caller is NOT told. A cause outside the closed set is not written.
 
         Args:
             template: The matched template, or a literal for what did not match.
             code: The HTTP status.
+            refused: The cause of a refusal, or None for every other answer.
         """
         method = self.command if self.command in KNOWN_METHODS else UNKNOWN_METHOD
-        sys.stderr.write(f"{method} {template} {code}\n")
+        cause = f" refused={refused}" if refused in REFUSAL_CAUSES else ""
+        sys.stderr.write(f"{method} {template} {code}{cause}\n")
 
     # -- responses ---------------------------------------------------------
 
@@ -874,15 +893,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if self.command != "HEAD" and body:
             self.wfile.write(body)
 
-    def _respond(self, response: contract.Response, template: str, *, close: bool = False) -> None:
+    def _respond(
+        self,
+        response: contract.Response,
+        template: str,
+        *,
+        close: bool = False,
+        refused: str | None = None,
+    ) -> None:
         """Encode and write one contract envelope.
 
         Args:
             response: What the route decided.
             template: What to log it under.
             close: Whether the connection ends after this answer.
+            refused: The cause to log beside a 403 refusal. It is NEVER written
+                into the body: the envelope is the same whatever the cause.
         """
-        self._log(template, response.http_status)
+        self._log(template, response.http_status, refused)
         self._emit(
             response.http_status,
             contract.encode(response.payload),
@@ -1041,7 +1069,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         mutating: frozenset[tuple[str, str]] = self.server.mutating  # type: ignore[attr-defined]
         if (self.command, template) in mutating and not self._proves_same_origin():
             self._respond(
-                contract.forbidden(template, contract.REASON_CROSS_ORIGIN_REFUSED), template
+                contract.forbidden(template, contract.REASON_CROSS_ORIGIN_REFUSED),
+                template,
+                refused=REFUSED_PROOF,
             )
             return
 
