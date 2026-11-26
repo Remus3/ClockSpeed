@@ -1117,6 +1117,86 @@ def test_a_remembered_account_directory_with_spaces_renders_no_tail(
     )
 
 
+@pytest.mark.parametrize("order", ["short-first", "long-first"])
+def test_a_longer_remembered_name_is_matched_whole_whichever_was_remembered_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, order: str
+) -> None:
+    """Longest first is a SORT, so the order the names were remembered in cannot matter.
+
+    Two remembered names, one a word-bounded prefix of the other. If the
+    shorter were applied first it would take its own words out of the longer
+    name and leave the tail standing as ``<account-dir> Copy``. Both
+    remembering orders are driven, because insertion order alone already
+    happens to put the longer first in one of them - only the ``short-first``
+    arm distinguishes a sort from no sort, and only a LONGEST-first sort from
+    a shortest-first one in both.
+    """
+    short = tmp_path / "backup" / "Zed Backup"
+    long = tmp_path / "backup" / "Zed Backup Copy"
+    short.mkdir(parents=True)
+    long.mkdir(parents=True)
+    ordered = (short, long) if order == "short-first" else (long, short)
+    for account in ordered:
+        monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+        assert locate.resolve_account_dir(None) == account, "the override did not resolve"
+
+    rendered = locate.redact(long / "f.dat")
+
+    leaked = rendered.count("Copy") + rendered.count("Backup")
+    assert leaked == 0, f"{leaked} word(s) of the longer remembered name survived"
+    assert rendered.endswith(f"/{locate.ACCOUNT_DIR_PLACEHOLDER}/f.dat"), (
+        "the name went, but not as one placeholder"
+    )
+
+
+def test_a_remembered_name_that_a_placeholder_contains_is_not_applied_twice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Each distinct spelling of a remembered name is applied ONCE.
+
+    The raw and the environment-substituted forms are the same string for a
+    name no needle touches. Applied twice, the second pass would find the name
+    inside the placeholder the first one wrote - ``dir`` sits inside
+    ``<account-dir>`` - and nest a second placeholder inside the first.
+    """
+    account = tmp_path / "backup" / "dir"
+    account.mkdir(parents=True)
+    monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+    assert locate.resolve_account_dir(None) == account, "the override did not resolve"
+
+    rendered = locate.redact("dir")
+
+    assert rendered == locate.ACCOUNT_DIR_PLACEHOLDER
+    nested = rendered[1:-1].count("<")
+    assert nested == 0, "a placeholder was nested inside another placeholder"
+
+
+def test_pin_the_redact_docstring_states_the_bare_segment_exemption_and_its_fence() -> None:
+    """PIN, not red-first evidence (CS-454.1, defect 4 and ruling G4).
+
+    Defect 4 is closed by a STATED exemption, and a statement that can be
+    deleted without a test noticing is not a statement anyone is held to. The
+    ``redact`` docstring must carry the exemption, name the fence that bounds
+    it by full test id, and say that the fence does not reach ``tools/`` or
+    ``scripts/``. The fence test the docstring names must also exist, so the
+    id cannot rot into a pointer at nothing.
+    """
+    fence_id = "tests/test_redaction_scope.py::test_no_redact_call_site_renders_a_bare_segment"
+    doc = " ".join((locate.redact.__doc__ or "").split())
+    fence_file = Path(__file__).parent.parent / "test_redaction_scope.py"
+    fence_source = fence_file.read_text(encoding="utf-8")
+
+    states_exemption = "STATED EXEMPTIONS" in doc and "A BARE account-directory name" in doc
+    names_fence = fence_id in doc
+    states_scope = "tools/ and scripts/ are not bounded by it" in doc
+    fence_exists = "def test_no_redact_call_site_renders_a_bare_segment(" in fence_source
+
+    assert states_exemption, "the redact docstring no longer states the bare-segment exemption"
+    assert names_fence, "the redact docstring no longer names the fence test by full id"
+    assert states_scope, "the redact docstring no longer states the fence's scope limit"
+    assert fence_exists, "the fence test the docstring names does not exist"
+
+
 def test_a_remembered_name_that_is_only_an_environment_token_does_not_eat_the_home_prefix(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
