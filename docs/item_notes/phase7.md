@@ -937,29 +937,6 @@ Write-list:
 - U-138.5: `BACKLOG.md`, `docs/item_notes/phase5.md`, `docs/item_notes/phase6.md`, `docs/item_notes/phase7.md`, `docs/item_notes/phase4-followups-960.md`, `docs/LEDGER.md`
 - U-138.6: `docs/item_notes/wave-plan.md`, `CS-NEXT-SESSION.txt`, `docs/LEDGER.md`, `ROADMAP.md`, `docs/item_notes/phase7.md`, `docs/history_notes.md`
 
-## CS-1410
-
-### Acceptance
-
-Run from `<repo>`; every clause is a command with its expected output.
-1. `grep -c "to Coffee Stain Studios or Coffee Stain Publishing\." README.md` prints 1 (0 at HEAD: README.md lines 210-212 names the studio only).
-2. `grep -c "All trademarks belong to their respective owners\." README.md` prints 1 (0 at HEAD).
-3. `grep -c "It is not affiliated with, endorsed by, or connected" README.md` prints 1 (the non-affiliation sentence survives the edit).
-4. NEGATIVE, no holder named: `grep -ciE "trademarks? of |registered trademark|\((R|TM)\)" README.md` prints 0.
-5. NEGATIVE, budget, graded RELATIVE because five other units write README.md in no fixed order: `.venv/Scripts/python.exe -m pytest tests/test_readme_audit.py -q` passes (it holds test_readme_is_under_the_line_budget, tests/test_readme_audit.py line 535, limit README_LINE_BUDGET at :49), and `git show --numstat --format= <sha> -- README.md` for this unit's commit prints 3 added and 2 removed (one net line: the first new line is byte-identical to the line it replaces). No absolute line count is graded.
-6. NEGATIVE, scope: for each commit of this unit, `git show --name-only --format= <sha> -- docs/OPERATIONS.md docs/assets` prints nothing (the unit's own commits, read from the ledger entry; never a `<base>..HEAD` range, which other units' commits would redden).
-7. `.venv/Scripts/python.exe tools/drift_guard.py` exits 0 and `.venv/Scripts/python.exe -m pytest tests/test_docs_citations.py -q` passes.
-R-tos-6's second clause (the image rule in docs/OPERATIONS.md section 13) is NOT graded here: D26 and D72 put that write in U-135.4, whose acceptance must hold `grep -c "never a game frame" docs/OPERATIONS.md` = 1; that file is hard-wrapped, so U-135.4 must keep the four words `never a game frame` unbroken on ONE line or the count reads 0. This item closes on clauses 1 to 7.
-
-### Filed 2026-11-24 by the session 161 wave 0 filing
-
-Plan key: U-007. Class: process. Lane flag: false (not eligible). Planned minutes: 45.
-Depends on: none.
-Wave: W1, group 3, slice W1-G3-S2.
-Hub chains (order read from the plan's wave lists; U-141 fills the annex chain column): `README.md`, written by this row alone in W1.
-Write-list:
-- U-007 (one part): `README.md`
-
 ## CS-1411
 
 ### Acceptance

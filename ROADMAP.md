@@ -326,7 +326,6 @@ CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, s
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1409 - the session 159 plan's accepted rows are in no tracked file: file each as a line and a leaf section, and add the wave annex - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1410 - the README disclaimer names the studio only and carries no trademark sentence - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1411 - a session has no stated wave size, push count or exit measurement, so each wave is sized by guess and pays the whole suite several times - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1412 - the wave annex gives no writer order for a file several slices write, so two builders of one group can be handed the same file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1413 - a hand-off behind HEAD costs a session: open the next-action block with a WAVE STATE stanza and reconcile it from the tree at every start - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

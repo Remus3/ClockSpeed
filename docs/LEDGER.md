@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1410 - CLOSED: the README disclaimer names Coffee Stain Studios and Coffee Stain Publishing and ends with one generic trademark sentence
+Verification: `README.md` (the closing paragraph of `## License`) plus
+`tests/test_readme_audit.py::test_readme_is_under_the_line_budget`, `tests/test_docs_citations.py` and
+`tools/drift_guard.py`. No new test (spec: D72, a docs rider).
+SCOPE. Plan key U-007, wave 1 group 3, slice W1-G3-S2, one part. The README change is its own commit, README.md
+only, on main under the exact subject "docs(CS-1410): README names studio and publisher, adds trademark line".
+Resolve it with `git log main --fixed-strings --grep` on that subject, which prints one hit; not with `--all`,
+because a builder worktree branch still holds the frozen candidate under the same subject and `--all` prints two.
+The candidate and the landed commit are equal by content and share one parent. This close is a separate merger
+commit that writes docs/LEDGER.md, ROADMAP.md and docs/item_notes/phase7.md and nothing else.
+RED FIRST, at the parent of the README commit: clause 1 printed 0 and clause 2 printed 0.
+CLAUSES, as the leaf filed them, each with the value observed at the landed tree:
+CLAUSE 1 MET: `grep -c "to Coffee Stain Studios or Coffee Stain Publishing\." README.md` prints 1 (0 before).
+CLAUSE 2 MET: `grep -c "All trademarks belong to their respective owners\." README.md` prints 1 (0 before).
+CLAUSE 3 MET: `grep -c "It is not affiliated with, endorsed by, or connected" README.md` prints 1; the
+non-affiliation sentence survives the edit.
+CLAUSE 4 MET: `grep -ciE "trademarks? of |registered trademark|\((R|TM)\)" README.md` prints 0; no holder is named.
+CLAUSE 5 MET, graded on the corrected leaf clause, 3 added and 2 removed, per the session 163 CS-1410 DECISION
+RECORD directly below this one; THE PLAN's 4 added and 3 removed is overridden there and is not graded.
+`python -m pytest tests/test_readme_audit.py tests/test_docs_citations.py -q` exit 0, 705 passed, holding
+`test_readme_is_under_the_line_budget` (README_LINE_BUDGET 220; README.md reads 213 lines, 212 before); and
+`git show --numstat --format= <commit> -- README.md`, for the commit resolved by subject on main, prints 3 added and
+2 removed.
+CLAUSE 6 MET: `git show --name-only --format= <commit> -- docs/OPERATIONS.md docs/assets` prints nothing; the commit
+touches README.md alone.
+CLAUSE 7 MET: `tools/drift_guard.py` exit 0, 11 guards, 11 PASS, 0 FAIL, VERDICT CLEAN; `tests/test_docs_citations.py`
+passed inside the clause 5 run.
+ALSO: README.md holds 0 bytes at or above 0x80; author and committer are the operator identity; no co-author or
+sign-off trailer; porcelain empty after every probe.
+VERDICTS: graded CLOSE by ruling S163-R3, a distinct adjudicator that did not build, land or review this item, at the
+landed tree; the adversary returned NOT REFUTED. The runner-up (do not close: THE PLAN's clause 5 still reads 4 and
+3, and the leaf omits the spec's ledger-quote condition) lost: ruling G13 binds and the leaf is the clause's sole
+owner, and the quote is met by the carry below. Common-mode risk (builder, adversary and the G13 measurement all
+read one spec text) was checked against the leaf and git directly, not against the spec's counts.
+THE IMAGE RULE, CARRIED HERE: in scope for this record, out of scope as a write. R-tos-6's second clause is not
+graded by this item, but the spec's "Done when" requires this record to carry it, and deleting the leaf section
+removes its only tracked holder while U-135 is unfiled. The sentence, verbatim:
+"No tracked or published image (README, release page, social preview) shows the overlay or the companion over a
+real game frame: README and release images show the product's own interface over synthetic or neutral ground,
+never a game frame, and an overlay picture is composed over a neutral background."
+Carrier: U-135.4 (unfiled; U-135 is filed by W26), into docs/OPERATIONS.md section 13, authority "R-tos-6, D72"
+(D26 places it). The one-line rule: re-wrapped to that file's width with `never a game frame` unbroken on ONE line,
+so U-135.4's `grep -c "never a game frame" docs/OPERATIONS.md` reads 1. This item does not touch
+docs/OPERATIONS.md (clause 6; D26 gives U-135.4 the single section 13 edit).
+CLOSED IN THIS COMMIT: the item's ROADMAP.md line and its whole section in docs/item_notes/phase7.md (the
+acceptance and the filing note) are deleted, not moved (161 D5), because this record carries what the section said
+(`docs/item_notes.md`). The wave table row in docs/item_notes/wave-plan.md stays: a plan table, not state, the
+precedent being the CS-1401 close, which kept its row intact.
+RESIDUAL: CITATION.cff still names the studio only (an adversary note), outside this item's acceptance and write
+list; filed as one BACKLOG.md line by the next commit. The wave annex row's Landing files reads none while this
+close writes three bookkeeping files: noted only, bookkeeping is excluded there.
+GATES on this commit's tree, from the repo root on the .venv interpreter, no whole suite: `python tools/drift_guard.py`
+exit 0, 11 guards, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN; `python tools/doc_budget.py` exit 0, VERDICT PASS, 43
+measured, 0 over budget; `python -m pytest` over tests/test_docs_citations.py, tests/test_ledger_entry_shape.py,
+tests/data/test_item_notes_index.py, tests/test_doc_sweep.py and tests/test_citation_guard_shapes.py with
+`-q -n 4 -p no:cacheprovider`, exit 0, 849 passed; `python tools/precommit_gate.py --staged` exit 0. Not pushed.
+
 ### 2026-11-25 - CS-1410 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1410 STAYS OPEN: acceptance clause 5 corrected to the measured README diff, 3 added and 2 removed
 Verification: `docs/item_notes/phase7.md` (the CS-1410 section, clause 5 of its `### Acceptance`), this record. This
 record closes nothing, so no test names one.
