@@ -208,5 +208,6 @@ MIT - see [`LICENSE`](LICENSE). A small number of vendored files carry their own
 [`THIRD_PARTY.md`](THIRD_PARTY.md) lists each one.
 
 Clockspeed is an independent project. It is not affiliated with, endorsed by, or connected
-to Coffee Stain Studios. Satisfactory and its data files are the property of their
-publisher; nothing extracted from a local installation is redistributed here.
+to Coffee Stain Studios or Coffee Stain Publishing. Satisfactory and its data files are the
+property of their publisher; nothing extracted from a local installation is redistributed
+here. All trademarks belong to their respective owners.
