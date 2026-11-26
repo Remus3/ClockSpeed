@@ -217,6 +217,10 @@ every resolver that can fail reports WHY in a single stated form, with each call
 
 ## CS-454
 
+### Filed 2026-11-25 by the session 163 merger - Start from, plan ruling D103
+
+Start from the `docs/LEDGER.md` record "2026-08-16 - CS-454 - DOES NOT CLOSE. The redactor is materially better and clause 1 is NOT MET" and the four-remaining list in the status detail below; no branch holds work for this item. Part CS-454.1 has since landed and repaired those four defects; read its `docs/LEDGER.md` part record of 2026-11-25 next, which routes the residuals the whole Acceptance is graded against at CS-454.2.
+
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
 
 NOTE: filed 2026-08-16 by the CS-444 security adversary. FULL ENTRY relocated to this file under **CS-454 - detail**; read it before taking this item. **STATUS 2026-08-16 (session 15): BUILT, MERGED, ADJUDICATED, AND IT DOES NOT CLOSE. CLAUSE 2 MET, CLAUSE 3 MET, CLAUSE 1 NOT MET.** **The detail is RELOCATED 2026-08-18 (session 19), and is in this file under **CS-454 - status detail**, for the file's WARN budget. Relocated, not deleted, and it must be read before taking this item - it records which commits shipped, what the adjudicator ruled, and why clause 1 is the one still open.**

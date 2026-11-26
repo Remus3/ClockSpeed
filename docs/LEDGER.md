@@ -75,6 +75,82 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-454 - NOT A COMPLETION RECORD. CS-454 STAYS OPEN: part CS-454.1 LANDED - the four remaining account-directory redaction defects repaired in clockspeed/data/locate.py
+Verification: `tests/save/test_workdir.py::test_the_refusal_names_no_hex_account_directory_under_a_junctioned_save_root`,
+`tests/save/test_workdir.py::test_the_refusal_names_no_account_directory_that_is_itself_a_link_to_another_name`,
+`tests/data/test_locate.py::test_a_username_inside_the_account_segment_does_not_defeat_position`,
+`tests/data/test_locate.py::test_the_positional_pass_admits_exactly_the_tokens_the_environment_pass_emits`,
+`tests/data/test_locate.py::test_a_remembered_account_directory_with_spaces_renders_no_tail`,
+`tests/data/test_locate.py::test_a_remembered_name_carrying_the_username_in_another_case_still_matches`,
+`tests/data/test_locate.py::test_a_longer_remembered_name_is_matched_whole_whichever_was_remembered_first`,
+`tests/data/test_locate.py::test_pin_the_redact_docstring_states_the_bare_segment_exemption_and_its_fence`,
+`tests/data/test_locate.py::test_a_bare_segment_equal_to_a_remembered_name_is_redacted` and
+`tests/test_hook_env_echo.py::test_every_environment_use_in_a_hook_run_program_is_allowed`. This record closes nothing.
+PART SCOPE. Wave 1, group 2, slice W1-G2-S2, one part of the item under ruling P4F-3: the four account-directory
+redaction defects the leaf's four-remaining list names, each repaired in clockspeed/data/locate.py or, for the fourth,
+a stated exemption there. The whole Acceptance is graded only at part CS-454.2, so the item's ROADMAP.md line and its
+leaf `### Acceptance` stay unedited. Built by one worktree slice and landed on main by the session 163 merger;
+locate.py, test_locate.py and test_workdir.py equal the frozen candidate by blob.
+P1 THE JUNCTION DEFECT (rulings G15 and G6): the save root and the account directory are also remembered by their
+resolved target, so a link anywhere between the anchor and the account directory, including an account directory that
+is itself a link to a differently named target, renders no account directory. Red first from a real junction on this
+Windows host through the production refusal; both arms are parametrized over link kind, the first with a plain
+control. `test_the_refusal_names_no_hex_account_directory_under_a_junctioned_save_root` and
+`test_the_refusal_names_no_account_directory_that_is_itself_a_link_to_another_name`.
+P2 PLACEHOLDER INJECTION (ruling G2): the positional pass admits exactly the five literal tokens the environment pass
+emits, by alternation inside a positional-only segment pattern; the shared segment class is not edited and gains no
+character. `test_a_username_inside_the_account_segment_does_not_defeat_position` and
+`test_the_positional_pass_admits_exactly_the_tokens_the_environment_pass_emits`.
+P3 THE WHITESPACE TAIL (ruling G3): remembered account names, spaces allowed, are matched whole before the positional
+pass, in raw and environment-substituted forms, case-insensitively, longest first and deduplicated.
+`test_a_remembered_account_directory_with_spaces_renders_no_tail`,
+`test_a_remembered_name_carrying_the_username_in_another_case_still_matches`,
+`test_a_longer_remembered_name_is_matched_whole_whichever_was_remembered_first` and
+`test_a_remembered_name_that_a_placeholder_contains_is_not_applied_twice`.
+P4 THE BARE SEGMENT (ruling G4): a stated exemption in the redact() docstring, naming its bounding fence
+`tests/test_redaction_scope.py::test_no_redact_call_site_renders_a_bare_segment` and its scope limit (clockspeed/
+only). `test_pin_the_redact_docstring_states_the_bare_segment_exemption_and_its_fence` pins the sentence;
+`test_a_bare_segment_equal_to_a_remembered_name_is_redacted` is a regression pin, not red-first evidence.
+CENSUS (ruling S163-R2): the redactor's Path.resolve is allowed by exactly one site-scoped entry in
+tests/test_hook_env_echo.py, keyed on clockspeed/data/locate.py and `_resolved_forms` and granting Path.resolve alone;
+the resolved forms are matched as needles and never rendered, and
+`test_every_environment_use_in_a_hook_run_program_is_allowed` reddens without the entry.
+COMMITS, each resolved on main by its exact subject with `git log main --fixed-strings --grep`, which prints one hit;
+for the four part commits `--all` prints two, because the builder worktree branch still holds the candidates under the
+same subjects. The part commits, in landing order: "CS-454.1: close the four remaining account-dir redaction
+defects", "CS-454.1: allow the redactor's link resolve in the env-echo census", "CS-454.1: pin longest-first, dedupe
+and the exemption docstring" and "CS-454.1: pin the case-insensitive remembered-name substitution". Then the merger's
+pin repair, "docs(CS-454.1): retire the four locate.py line pins it moved".
+THE PIN REPAIR: the part moved four pinned locate.py lines under their digests; each frozen line was found again
+further down byte-identical and no digest was re-cut. The live phase-4 followups leaf took the symbol form at its two
+sites and left the pin table; the append-only docs/LEDGER.md took adjudicated MOVED dispositions with live targets at
+its two sites, the budget-neutral route its commit body names; the ceiling came down 75 to 73 for the two repairs.
+RED TIPS: the tips between the first part commit and the pin repair were red in tests/test_docs_citations.py:
+`test_every_live_pin_anchors_a_line_that_is_still_there` at every part tip, and at the last part tip that arm and
+`test_no_line_pointer_names_a_tracked_python_module_without_a_record` (the earlier part tips were measured on the
+first arm only). Green from the pin repair on.
+ADVERSARIES: the privacy adversary returned NOT REFUTED. The mutation adversary returned REFUTED at round 1
+(longest-first ordering unpinned) and round 2 (the case-insensitive substitution unpinned), each answered by a pin
+commit above, and NOT REFUTED at round 3. F2 (drop the guard that the resolved form differs) and F4 (keep the
+substituted form only) are equivalent mutants; F3 (narrow the suppression to OSError) survives only as a ValueError
+escaping a resolve on POSIX, unreachable on this host.
+RESIDUALS, routed to part CS-454.2 for the whole-Acceptance grade: an unremembered spaced account-directory name keeps
+its tail (ruling G3, never written as an exemption); a save root declared through a junction with no resolver run
+keeps a hex id in a message that spells the target (the same as base; the one rendering resolve site calls the
+resolvers first); a second pass over remembered names like "dir" or "account" is not idempotent (pre-existing, and
+better than base).
+THE START-FROM NOTE (ruling G5, plan ruling D103) is filed by this commit in docs/item_notes/phase4.md, first under
+the item's section, pointing at the 2026-08-16 DOES NOT CLOSE record and the leaf's four-remaining list, with no
+branch. This record's shape was specified by ruling S163-R5, a distinct adjudicator that planned, built, landed and
+reviewed neither item.
+GATES on this commit's tree, from the repo root on the .venv interpreter, no whole suite:
+`python tools/drift_guard.py` exit 0, 11 guards, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN; `python tools/doc_budget.py`
+exit 0, VERDICT PASS, 43 measured, 0 over budget; `python -m pytest` over tests/test_docs_citations.py,
+tests/test_citation_guard_shapes.py, tests/test_ledger_entry_shape.py, tests/data/test_item_notes_index.py,
+tests/test_doc_sweep.py, tests/test_scaffold.py, tests/test_citation_tables.py, tests/test_dated_headings.py,
+tests/test_disposition_sites.py, tests/ops/test_lane_scope.py and tests/ops/test_scope_binding.py with
+`-q -n 4 -p no:cacheprovider`, exit 0, 1094 passed; `python tools/precommit_gate.py --staged` exit 0. Not pushed.
+
 ### 2026-11-25 - CS-1261 - CLOSED: local API hardening - loopback by construction, no query-string or header token admitted, refusal causes logged from a closed set, a per-mint random cert subject
 Verification: `tests/surface/test_server.py::test_the_server_refuses_any_address_that_is_not_loopback`,
 `tests/surface/test_config.py::test_the_config_binds_loopback_and_never_a_wildcard`,
