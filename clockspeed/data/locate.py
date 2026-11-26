@@ -136,6 +136,12 @@ ACCOUNT_DIR_PLACEHOLDER = "<account-dir>"
 # whole component goes rather than some guessed part of it.
 SAVE_FILE_PLACEHOLDER = "<save-file>"
 
+# The closed set of tokens the ENVIRONMENT pass of redact() can write, spelled
+# once so the positional rule can admit exactly these inside an account segment
+# and nothing else (CS-454.1). A test compares this set to what
+# _redaction_pairs() emits in both directions, so it cannot drift from it.
+_ENV_PLACEHOLDERS: Final = ("<user>", "<machine>", "<home>", "<localappdata>", "<appdata>")
+
 # A BACKSTOP, not the rule. The rule is positional - see
 # _save_root_anchors - because an account directory is whatever name sits in
 # the account-id position, and only one platform puts digits there: Epic
@@ -200,6 +206,27 @@ _SAVE_FILE_RE = re.compile(
 )
 
 
+# The ACCOUNT segment, which is _PATH_SEGMENT_CLASS plus the environment
+# tokens, and ONLY them (CS-454.1). The environment pass runs first and rewrites
+# a needle that sits INSIDE the account directory's name - a USERNAME that is a
+# prefix, a middle or a suffix of it - to a token such as "<user>", which
+# injects a character the shared class excludes, so position could not match
+# and a plaintext tail rendered. Admitting the closed token set, by alternation,
+# lets the segment span the token without widening the class that also feeds
+# _SAVE_FILE_RE, and without admitting an arbitrary "<...>" that would make
+# redact() eat its own placeholders. The alternatives are disjoint (a token
+# starts with an excluded character), so the repeat cannot backtrack badly. The
+# class is reused through its body, minus its trailing repeat, so there is one
+# spelling of it.
+_ACCOUNT_SEGMENT = (
+    "(?:"
+    + "|".join(re.escape(token) for token in _ENV_PLACEHOLDERS)
+    + "|"
+    + _PATH_SEGMENT_CLASS[:-1]
+    + ")+"
+)
+
+
 @functools.lru_cache(maxsize=128)
 def _account_position_re(anchor: str) -> re.Pattern[str]:
     """Compile the positional rule for one save-root anchor.
@@ -216,7 +243,7 @@ def _account_position_re(anchor: str) -> re.Pattern[str]:
         A pattern capturing the anchor in group 1 and consuming the ONE
         segment below it, which is the account directory.
     """
-    return re.compile("(" + re.escape(anchor) + ")/" + _PATH_SEGMENT_CLASS, re.IGNORECASE)
+    return re.compile("(" + re.escape(anchor) + ")/" + _ACCOUNT_SEGMENT, re.IGNORECASE)
 
 
 @functools.lru_cache(maxsize=64)
@@ -416,21 +443,42 @@ def redact(text: object) -> str:
 
     FIVE PASSES, IN THIS ORDER, and the order is load-bearing. The environment
     needles go first so the save-root marker is left sitting behind a token
-    rather than behind an absolute path. Position goes next, because where a
-    segment sits is the only reliable account-directory rule; it runs once per
-    save-root ANCHOR rather than once against the fixed marker, so a save root
-    the operator relocated still has a position to key on (CS-454, and see
-    _save_root_anchors for why the anchors cannot be a resolver call and why
-    each is offered in a substituted form). The remembered names follow,
-    covering an override that put the account directory somewhere with no
-    marker above it. The digit-run backstop then catches an id encountered
-    outside any path at all. The save filename goes last, so it is matched
-    against a string whose directories are already tokens.
+    rather than behind an absolute path. The remembered names come next, WHOLE
+    and spaces included, and before position (CS-454.1): the segment class
+    excludes whitespace, so position would consume only the first word of a
+    name such as ``My Backup Copy`` and leave the rest standing as prose.
+    Position follows, because where a segment sits is the only reliable
+    account-directory rule; it runs once per save-root ANCHOR rather than once
+    against the fixed marker, so a save root the operator relocated still has a
+    position to key on (CS-454, and see _save_root_anchors for why the anchors
+    cannot be a resolver call and why each is offered in a substituted form),
+    and its segment admits the environment tokens so a USERNAME inside the
+    account directory's name does not defeat it. The digit-run backstop then
+    catches an id encountered outside any path at all. The save filename goes
+    last, so it is matched against a string whose directories are already
+    tokens.
 
     Idempotent: every placeholder is built from characters the patterns
     exclude, so redacting an already-redacted string returns it unchanged.
     That matters because output is redacted at more than one seam - a skip
     record built by a guard is redacted again when it is rendered.
+
+    STATED EXEMPTIONS - what this function does NOT claim (CS-454.1):
+
+      * A BARE account-directory name, one that no resolver in this process
+        remembered and that is not all digits, is not redactable here. With no
+        path around it there is no position to key on, and nothing about a hex
+        token or a GUID distinguishes it from any other word. A bare name that
+        IS remembered, because this module resolved it, is redacted by the
+        name pass. The exemption is BOUNDED by
+        tests/test_redaction_scope.py::test_no_redact_call_site_renders_a_bare_segment,
+        which fails any call site under clockspeed/ that renders a bare
+        segment. Its scope is clockspeed/ only: tools/ and scripts/ are not
+        bounded by it.
+      * A spaced account-directory name that no resolver remembered is redacted
+        only as far as position reaches - its first word - because the segment
+        class is deliberately not widened (three widenings measured worse).
+        This is a residual, not an exemption, and is carried to CS-454.2.
 
     Args:
         text: Anything renderable - a Path, an exception, a message.
@@ -439,19 +487,82 @@ def redact(text: object) -> str:
         The redacted rendering. Never raises.
     """
     out = str(text).replace("\\", "/")
-    for needle, token in _redaction_pairs():
+    pairs = _redaction_pairs()
+    for needle, token in pairs:
         out = re.sub(re.escape(needle), token, out, flags=re.IGNORECASE)
-    for anchor in _save_root_anchors():
-        out = _account_position_re(anchor).sub(r"\1/" + ACCOUNT_DIR_PLACEHOLDER, out)
-    for name in _RESOLVED_ACCOUNT_NAMES[:]:
+    for name in _remembered_name_forms(pairs):
         out = re.sub(
             r"(?<![0-9A-Za-z])" + re.escape(name) + r"(?![0-9A-Za-z])",
             ACCOUNT_DIR_PLACEHOLDER,
             out,
             flags=re.IGNORECASE,
         )
+    for anchor in _save_root_anchors():
+        out = _account_position_re(anchor).sub(r"\1/" + ACCOUNT_DIR_PLACEHOLDER, out)
     out = _ACCOUNT_ID_RE.sub(ACCOUNT_DIR_PLACEHOLDER, out)
     return _SAVE_FILE_RE.sub(SAVE_FILE_PLACEHOLDER, out)
+
+
+def _remembered_name_forms(pairs: list[tuple[str, str]]) -> list[str]:
+    """Every spelling of every remembered account directory name, longest first.
+
+    Each remembered name is offered RAW and ENVIRONMENT-SUBSTITUTED, the idiom
+    :func:`_save_root_anchors` uses for the same reason (CS-454.1): by the time
+    this runs the environment needles have already rewritten the text, so a
+    name that CONTAINS one - ``<username> Backup`` - is spelled ``<user> Backup``
+    in the string and only a substituted form can meet it. A substituted form
+    that is nothing but one bare token is dropped, because matching it would
+    redact that token everywhere, including the home prefix it belongs to.
+
+    Longest first, so ``My Backup Copy`` is consumed whole before a remembered
+    ``My`` could take its first word.
+
+    Args:
+        pairs: The (needle, token) pairs the environment pass just applied.
+
+    Returns:
+        Distinct name spellings, longest first. Never raises.
+    """
+    forms: list[str] = []
+    for name in _RESOLVED_ACCOUNT_NAMES[:]:
+        substituted = name
+        for needle, token in pairs:
+            substituted = re.sub(re.escape(needle), token, substituted, flags=re.IGNORECASE)
+        for form in (name, substituted):
+            if form not in forms and form not in _ENV_PLACEHOLDERS:
+                forms.append(form)
+    forms.sort(key=len, reverse=True)
+    return forms
+
+
+def _resolved_forms(path: Path) -> list[str]:
+    """Return every rendering of ``path`` with every link on the way followed.
+
+    THE DEFECT THIS EXISTS FOR (CS-454.1). A message does not always arrive
+    spelling the path the operator DECLARED. clockspeed/save/workdir.py
+    resolves a destination before it renders it, and resolving follows a
+    junction or a symlink - so a save root reached through a link, or an
+    account directory that is itself a link to a differently named target,
+    is rendered under the name of the TARGET, which no anchor and no
+    remembered name spelled. The hex account directory then rendered whole.
+    Remembering the resolved forms beside the given ones is what makes the
+    link transparent to the redactor.
+
+    Like everything remembered here this is taken at resolve time, when the
+    path is known to exist, and only ever makes redaction stricter.
+
+    Args:
+        path: A directory this module has just confirmed exists.
+
+    Returns:
+        The forms of the resolved path, or an empty list when resolving fails
+        or changes nothing. Never raises, and renders nothing on failure.
+    """
+    with contextlib.suppress(OSError, RuntimeError, ValueError):
+        resolved = path.resolve()
+        if resolved != path:
+            return _path_forms(str(resolved))
+    return []
 
 
 def _remember_account_dir(path: Path) -> Path:
@@ -481,7 +592,7 @@ def _remember_account_dir(path: Path) -> Path:
     Returns:
         ``path``, unchanged, so callers can return through this.
     """
-    for form in _path_forms(str(path)):
+    for form in (*_path_forms(str(path)), *_resolved_forms(path)):
         name = Path(form).name
         if len(name) >= MIN_REDACTABLE_LEN and name not in _RESOLVED_ACCOUNT_NAMES:
             _RESOLVED_ACCOUNT_NAMES.append(name)
@@ -507,7 +618,7 @@ def _remember_save_root(path: Path) -> Path:
     Returns:
         ``path``, unchanged, so callers can return through this.
     """
-    for form in _path_forms(str(path)):
+    for form in (*_path_forms(str(path)), *_resolved_forms(path)):
         normalized = form.replace("\\", "/").rstrip("/")
         if len(normalized) >= MIN_REDACTABLE_LEN and normalized not in _RESOLVED_SAVE_ROOTS:
             _RESOLVED_SAVE_ROOTS.append(normalized)

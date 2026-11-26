@@ -921,6 +921,246 @@ def test_redact_is_idempotent_so_a_placeholder_survives_a_second_pass(
 
 
 # ---------------------------------------------------------------------------
+# CS-454.1 - the three defects that survive a correct anchor set
+# ---------------------------------------------------------------------------
+
+# Invented. Long enough to clear MIN_REDACTABLE_LEN and shaped like a first name
+# so it can sit inside a segment the way a real USERNAME would.
+SYNTHETIC_USERNAME = "Quillon"
+
+# A hex tail. Digits and letters mixed so no four-character window of it can be
+# a word that a tmp_path or a placeholder spells by coincidence.
+HEX_TAIL = "4f3a9b8c1d2e7a6b5c4d3e2f1a0b9c8d"
+
+_WINDOW = 4
+
+
+def _leaked_windows(pieces: tuple[str, ...], rendered: str) -> int:
+    """Count every four-character window of ``pieces`` that appears in ``rendered``.
+
+    A WINDOW COUNT AND NOT A WHOLE-STRING TEST, because the defect leaves a
+    plaintext TAIL: ``<user>`` replaces the matching prefix and the rest of the
+    segment stands. A whole-string check on the full name would pass on a
+    redactor that ate one character of it.
+    """
+    count = 0
+    for piece in pieces:
+        for start in range(len(piece) - _WINDOW + 1):
+            if piece[start : start + _WINDOW] in rendered:
+                count += 1
+    return count
+
+
+def _segment_with_username(where: str) -> tuple[str, tuple[str, ...]]:
+    """Build an account segment carrying the synthetic USERNAME, and its tail pieces."""
+    if where == "start":
+        return SYNTHETIC_USERNAME + HEX_TAIL, (HEX_TAIL,)
+    if where == "middle":
+        return (
+            HEX_TAIL[:12] + SYNTHETIC_USERNAME + HEX_TAIL[12:],
+            (HEX_TAIL[:12], HEX_TAIL[12:]),
+        )
+    return HEX_TAIL + SYNTHETIC_USERNAME, (HEX_TAIL,)
+
+
+@pytest.mark.parametrize("where", ["start", "middle", "end", "unset-control"])
+def test_a_username_inside_the_account_segment_does_not_defeat_position(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, where: str
+) -> None:
+    """The environment pass injects a token into the segment, and position must still fire.
+
+    THE DEFECT (CS-454.1, defect 2). The environment pass runs FIRST and
+    rewrites a matching needle to ``<user>``; ``_PATH_SEGMENT_CLASS`` excludes
+    the angle brackets, so the positional rule could not match a segment that
+    now held one, and the name pass hunted a literal that was gone. With the
+    marker present, nearly the whole directory name rendered in plaintext.
+
+    THE CONTROL IS ``unset-control``: the same layout with USERNAME unset, so
+    no token is ever injected. It is green on a redactor with the defect, which
+    is what shows the three arms above it fail BECAUSE of the injection and
+    not because of the fixture.
+
+    A hex tail, so the digit backstop cannot carry it, under the real marker,
+    so position is the rule that has to fire.
+    """
+    home = tmp_path / "home"
+    local = home / "AppData" / "Local"
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    if where == "unset-control":
+        monkeypatch.delenv("USERNAME", raising=False)
+        segment = SYNTHETIC_USERNAME + HEX_TAIL
+        pieces: tuple[str, ...] = (HEX_TAIL,)
+    else:
+        monkeypatch.setenv("USERNAME", SYNTHETIC_USERNAME)
+        segment, pieces = _segment_with_username(where)
+    path = local.joinpath(*locate.SAVE_ROOT_PARTS) / segment / "world.dat"
+
+    rendered = locate.redact(path)
+
+    leaked = _leaked_windows(pieces, rendered)
+    assert leaked == 0, f"{leaked} four-character window(s) of the account tail survived"
+    assert rendered.endswith(f"/SaveGames/{locate.ACCOUNT_DIR_PLACEHOLDER}/world.dat"), (
+        "the tail went, but so did the structure around it - the placeholder has to "
+        "sit between the marker and the file"
+    )
+
+
+@pytest.mark.parametrize("where", ["start", "middle", "end"])
+def test_redacting_a_segment_that_carried_a_username_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, where: str
+) -> None:
+    """Admitting the environment tokens into position must not make redact() unstable.
+
+    Output is redacted at more than one seam, so a second pass over an already
+    redacted string has to return it unchanged.
+    """
+    home = tmp_path / "home"
+    local = home / "AppData" / "Local"
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    monkeypatch.setenv("USERNAME", SYNTHETIC_USERNAME)
+    segment, _pieces = _segment_with_username(where)
+    path = local.joinpath(*locate.SAVE_ROOT_PARTS) / segment / "world.dat"
+
+    once = locate.redact(path)
+
+    assert locate.redact(once) == once
+
+
+def test_the_positional_pass_admits_exactly_the_tokens_the_environment_pass_emits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The admitted set cannot drift from what ``_redaction_pairs`` can emit.
+
+    Compared in BOTH directions: a token the environment pass emits and position
+    does not admit is defect 2 again, and a token position admits that nothing
+    emits is a free-floating angle-bracket admission the ruling forbids.
+    """
+    home = tmp_path / "home"
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("LOCALAPPDATA", str(home / "AppData" / "Local"))
+    monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
+    monkeypatch.setenv("USERNAME", SYNTHETIC_USERNAME)
+    monkeypatch.setenv("COMPUTERNAME", "SyntheticBox")
+
+    emitted = {token for _needle, token in locate._redaction_pairs()}  # noqa: SLF001
+    admitted = set(locate._ENV_PLACEHOLDERS)  # noqa: SLF001
+
+    assert emitted == admitted, "the admitted token set and the emitted token set differ"
+
+
+def test_the_segment_pattern_is_built_from_a_class_that_ends_in_a_plus() -> None:
+    """``_PATH_SEGMENT_CLASS`` is shared and unedited; the new pattern slices its repeat off.
+
+    If a later edit drops the trailing ``+`` the slice would eat a real
+    character, so the shape is pinned here rather than assumed.
+    """
+    shape = locate._PATH_SEGMENT_CLASS  # noqa: SLF001
+
+    assert shape.endswith("]+"), "the shared segment class no longer ends in a repeated class"
+
+
+SPACED_WORDS = ("Zorblax", "Quimby", "Trundle")
+
+
+@pytest.mark.parametrize("layout", ["under-marker", "outside-root"])
+@pytest.mark.parametrize("variant", ["three-words", "username-first", "one-word-control"])
+def test_a_remembered_account_directory_with_spaces_renders_no_tail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, layout: str, variant: str
+) -> None:
+    """A remembered name is matched WHOLE, spaces included, before position takes its first word.
+
+    THE DEFECT (CS-454.1, defect 3). The segment class excludes whitespace, so
+    position consumed the first word of ``My Backup Copy`` and the rest stood
+    as prose: ``<account-dir> Backup Copy``. The class is NOT widened (three
+    widenings measured worse); the name this module resolved is substituted
+    first instead.
+
+    ``username-first`` is the G3 arm: the name opens with the synthetic
+    USERNAME, so by the time the name pass runs the environment pass has
+    already turned the text into ``<user> Quimby Trundle`` and only an
+    env-substituted form of the remembered name can meet it.
+
+    ``one-word-control`` is green on a redactor with the defect: position
+    covers a one-word name under the marker, and the name pass covers it
+    outside any marker. ``outside-root`` with a spaced name is green too
+    EXCEPT for ``username-first``, which is why that variant is the one that
+    needs the substituted form.
+    """
+    monkeypatch.setenv("USERNAME", SYNTHETIC_USERNAME)
+    if variant == "three-words":
+        name = " ".join(SPACED_WORDS)
+    elif variant == "username-first":
+        name = " ".join((SYNTHETIC_USERNAME, *SPACED_WORDS[1:]))
+    else:
+        name = SPACED_WORDS[0]
+    if layout == "under-marker":
+        parent = _make_save_root(tmp_path)
+        monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, name)
+        account = _make_account_dir(parent, name)
+        resolved = locate.resolve_account_dir(parent)
+    else:
+        account = tmp_path / "backup" / name
+        account.mkdir(parents=True)
+        monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+        resolved = locate.resolve_account_dir(None)
+    assert resolved == account, "the override did not resolve; this test would prove nothing"
+
+    rendered = locate.redact(account / "f.dat")
+
+    words = SPACED_WORDS if variant != "username-first" else SPACED_WORDS[1:]
+    leaked = sum(rendered.count(word) for word in words)
+    assert leaked == 0, f"{leaked} word(s) of a spaced account directory name survived"
+    assert rendered.endswith(f"/{locate.ACCOUNT_DIR_PLACEHOLDER}/f.dat"), (
+        "the name went, but so did the structure around it"
+    )
+
+
+def test_a_remembered_name_that_is_only_an_environment_token_does_not_eat_the_home_prefix(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An account directory named exactly like the USERNAME must not redact ``<user>`` everywhere.
+
+    The env-substituted form of a remembered name is offered only when it is
+    more than a bare token. Otherwise the name pass would rewrite the ``<user>``
+    in a home prefix to the account placeholder, which is over-redaction of the
+    one token a reader needs to tell a profile path from a save path.
+    """
+    monkeypatch.setenv("USERNAME", SYNTHETIC_USERNAME)
+    account = tmp_path / "backup" / SYNTHETIC_USERNAME
+    account.mkdir(parents=True)
+    monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+    assert locate.resolve_account_dir(None) == account, "the override did not resolve"
+
+    rendered = locate.redact(f"C:/Users/{SYNTHETIC_USERNAME}/notes.txt")
+
+    assert "<user>" in rendered, "a bare-token substituted form over-redacted the home prefix"
+
+
+def test_a_bare_segment_equal_to_a_remembered_name_is_redacted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """REGRESSION PIN, not red-first evidence (CS-454.1, defect 4).
+
+    The bare-segment form - an account directory name with no path around it -
+    is reachable only through the remembered-name pass, and only for a name this
+    module resolved. This arm pins that half; the unremembered half is the
+    STATED exemption in ``redact()``'s docstring, bounded by the fence test
+    that docstring names. It is green on the base commit on purpose.
+    """
+    name = "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+    account = tmp_path / "backup" / name
+    account.mkdir(parents=True)
+    monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+    assert locate.resolve_account_dir(None) == account, "the override did not resolve"
+
+    rendered = locate.redact(name)
+
+    assert rendered == locate.ACCOUNT_DIR_PLACEHOLDER
+
+
+# ---------------------------------------------------------------------------
 # Live install - skipped rather than failed when the game is absent
 # ---------------------------------------------------------------------------
 

@@ -467,6 +467,144 @@ def test_the_refusal_message_carries_no_raw_account_directory_of_a_non_digit_sha
     )
 
 
+# A THIRD stand-in, a hex token like the one above and invented here. It names
+# the TARGET an account-directory link points at, so a leak of it can only mean
+# the redactor was handed the resolved path and never remembered that spelling.
+PRETEND_LINK_TARGET_ACCOUNT = "c4d2f0a9e8b7615243a3b4c5d6e7f801"
+
+
+def plant_directory_link(kind: str, link: Path, target: Path) -> None:
+    """Make ``link`` reach ``target`` as ``kind`` says, reusing this module's two helpers.
+
+    Args:
+        kind: ``junction`` or ``symlink``. Each skips with a reason where the
+            platform or the filesystem will not make it.
+        link: The link to create. Must not exist.
+        target: The directory it points at.
+    """
+    if kind == "junction":
+        make_junction(link, target)
+    else:
+        make_directory_symlink(link, target)
+
+
+def remove_directory_link(link: Path) -> None:
+    """Remove a planted directory link BY ITSELF, never touching what it reaches.
+
+    ``Path.rmdir`` removes a junction or a directory symlink on Windows without
+    following it; ``unlink`` does the same for a POSIX symlink. Nothing here
+    walks, rmtree-s or globs a tree that still holds the link.
+
+    Args:
+        link: The link to remove. Absent is fine.
+    """
+    try:
+        if os.name == "nt":
+            link.rmdir()
+        else:
+            link.unlink()
+    except FileNotFoundError:
+        pass
+
+
+@pytest.mark.parametrize("kind", ["plain-control", "junction", "symlink"])
+def test_the_refusal_names_no_hex_account_directory_under_a_junctioned_save_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, save_bytes: bytes, kind: str
+) -> None:
+    """A save root reached through a link still redacts the account directory it holds.
+
+    THE DEFECT (CS-454.1, defect 1). ``locate._remember_save_root`` stored the
+    root's spelling as DECLARED and never resolved it, while
+    ``workdir._resolved`` does - so the production refusal rendered the path
+    through the link's TARGET, and no anchor spelled that. A hex account
+    directory (not digits, so the backstop cannot carry it) then rendered whole.
+
+    DRIVEN THROUGH THE PRODUCTION REFUSAL, not through ``redact`` alone: the
+    save root is declared through the environment, the destination is a
+    directory inside the account directory THROUGH THE LINK, and
+    ``copy_for_read`` refuses it before anything is created.
+
+    ``plain-control`` is the same arm on a root that is not a link at all. It
+    is green on the base commit, which is what makes the ``junction`` red the
+    link's fault and not the fixture's. ``junction`` is the arm the red-first
+    evidence comes from: a real junction made through ``make_junction``.
+    ``symlink`` skips with a reason where Windows will not make one.
+
+    The link is removed in a ``finally`` BEFORE tmp cleanup, and nothing walks
+    the tree while it exists.
+    """
+    real_root = tmp_path / "real_saves"
+    (real_root / PRETEND_NONDIGIT_ACCOUNT).mkdir(parents=True)
+    source = tmp_path / "SyntheticWorld.sav"
+    source.write_bytes(save_bytes)
+    if kind == "plain-control":
+        root = real_root
+        planted = False
+    else:
+        root = tmp_path / "linked_saves"
+        plant_directory_link(kind, root, real_root)
+        planted = True
+    try:
+        monkeypatch.setenv(ENV_SAVE_ROOT, str(root))
+        assert "FactoryGame/Saved/SaveGames" not in root.as_posix(), (
+            "the save root spells the marker, so POSITION would fire and carry this arm"
+        )
+
+        with pytest.raises(workdir.DestinationRefusedError) as caught:
+            workdir.copy_for_read(source, work_root=root / PRETEND_NONDIGIT_ACCOUNT / "work")
+    finally:
+        if planted:
+            remove_directory_link(root)
+
+    message = str(caught.value)
+    leaked = message.count(PRETEND_NONDIGIT_ACCOUNT)
+    assert leaked == 0, f"the refusal rendered a hex account directory {leaked} time(s)"
+    assert f"/{locate.ACCOUNT_DIR_PLACEHOLDER}/work/" in message, (
+        "the account directory went, but so did the structure around it - a negative "
+        "assertion alone rules out without pinning down (CONVENTIONS.md section 7.2)"
+    )
+
+
+@pytest.mark.parametrize("kind", ["junction", "symlink"])
+def test_the_refusal_names_no_account_directory_that_is_itself_a_link_to_another_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, save_bytes: bytes, kind: str
+) -> None:
+    """An account directory that is a link to a DIFFERENTLY NAMED target redacts both names.
+
+    THE SAME DEFECT CLASS ONE LEVEL DOWN (CS-454.1, ruling G15). The declared
+    account directory is ``<root>/<link name>``; the production refusal renders
+    the path resolved THROUGH it, which spells ``<elsewhere>/<target name>``.
+    The target's name is not the declared one and is not under any save-root
+    anchor, so only a name remembered from the RESOLVED path can redact it.
+
+    Both hex names must be gone and the structure around them must survive.
+    The link is removed in a ``finally`` before tmp cleanup.
+    """
+    save_root = tmp_path / "pretend_saves"
+    save_root.mkdir()
+    target = tmp_path / "elsewhere" / PRETEND_LINK_TARGET_ACCOUNT
+    target.mkdir(parents=True)
+    link = save_root / PRETEND_NONDIGIT_ACCOUNT
+    source = tmp_path / "SyntheticWorld.sav"
+    source.write_bytes(save_bytes)
+    plant_directory_link(kind, link, target)
+    try:
+        monkeypatch.setenv(ENV_SAVE_ROOT, str(save_root))
+        monkeypatch.setenv(ENV_ACCOUNT_DIR, str(link))
+
+        with pytest.raises(workdir.DestinationRefusedError) as caught:
+            workdir.copy_for_read(source, work_root=link / "work")
+    finally:
+        remove_directory_link(link)
+
+    message = str(caught.value)
+    leaked = message.count(PRETEND_LINK_TARGET_ACCOUNT) + message.count(PRETEND_NONDIGIT_ACCOUNT)
+    assert leaked == 0, f"the refusal rendered an account directory name {leaked} time(s)"
+    assert f"/elsewhere/{locate.ACCOUNT_DIR_PLACEHOLDER}/work/" in message, (
+        "the names went, but so did the structure around them"
+    )
+
+
 # ===========================================================================
 # 3a. CS-444 - a forbidden root that is there and will not resolve
 # ===========================================================================
