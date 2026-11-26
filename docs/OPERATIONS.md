@@ -1019,6 +1019,84 @@ stated rather than left as an omission.
    `lane/<lane>-<short sha>` fallback branch) from `../cs-worktrees/lane-<i>`, and that
    the main checkout is untouched while a cycle runs.
 
+### 10.8 Waves - one per session, one gated suite, one push
+
+**Sizing.** A session is one wave, and the wave ends with the session's /done. B, the
+builder slices per group, is 2 in wave 1 and in wave 0's build slots; its floor is 1 and
+its ceiling 4. G, the groups per wave, is 3, subject to the capacity cap below. T: at most
+2 builders in a directory-wide test run at once whatever B is, and none while a whole
+suite runs. One unit takes one slice. A slice is planned at `60 planned builder minutes`;
+a unit takes `max(1, ceil(minutes/60))` slices; a unit above `120 planned minutes` is
+split into named slices, each with its own files, before dispatch; an agent is stopped at
+3 times its slice estimate. Capacity is `C = B x G` slices (6, then 9, and 12 at B 4 with
+G 3) and there is no build-minute budget. 12 caps C: C never exceeds 12 slices, G becomes
+4 only while B is at most 3, and at B 4 G stays 3. The wave ends at its last planned group
+or at `11 h` of wall time, whichever comes first, then /done. One repair round per item
+per wave, in a slot of a later group, group 3 taking repairs first; a second refutation
+sends the item to a later wave.
+
+**B and G move only on an exit record.** B rises by one for the NEXT wave only when the
+exit record shows all three: no memory-pressure failure (a MemoryError, a commit-limit
+error, or a fork failure of the failed-to-fork class) in any agent or test run; no slice
+stopped at 3 times its estimate; and a `projected headroom` of at least `6 GB`, where
+projected headroom = the lowest free-RAM read with B builders live, minus (the entry read
+minus that lowest read) / B. B falls by one on any memory-pressure failure. G is 4 for the
+next wave only when this wave's wall was under 8 h, otherwise 3, subject to the capacity
+cap in Sizing. One RAM read is taken at the entry step and one per group once every
+builder of the group is live; the lowest group read is the lowest read. Both reads are
+ONE probe, run from the repository root:
+`.venv/Scripts/python.exe -c "import sys; sys.path.insert(0, 'ops/fleet_kit'); import fleet_suite_gate; print(fleet_suite_gate.free_ram_mb())"`.
+It prints MB; every threshold and every `ram_gb` value is GB, which is MB divided by 1024.
+It prints None where the read fails: the read is then recorded `unread` and the headroom
+test is not met. No kit command prints free RAM; the suite gate's status command does not.
+
+**The one push.** Exactly one push of main reaches the remote per wave: the ritual push
+of the /done, run under `.claude/commands/done.md`, which this runbook points at and
+neither copies nor changes - its one gated whole suite, its read-back and its refusal and
+red-test paths are that file's. Zero retries when a test BLOCKS the push; one retry only on a
+suite-gate or git-lock refusal. A wave can end unpushed by exactly four stops, named
+`refused-twice`, `other-agent-edits`, `flake`, `genuine-red`; on each the whole wave stays
+local, the hand-off says push pending, and no lane is launched for that gap. The only
+other pushes are the first-act push of commits a previous session left local and the
+per-group pushes of the blocked-wave rule. The modes a next wave can run in are
+`ritual-only` and `per-group`.
+
+**The blocked-wave rule.** When a wave's ritual push was blocked by a test (either stop of
+the one push that a test causes: one that passes when re-run alone, or one that stays
+red), the next session's first act is the repair where one is needed and the first-act
+push, and that session pushes after every group (at most G suites). The rule lapses after
+one wave whose pushes all pass on the first attempt. Trigger and lapse are read from the
+exit record and this ritual's timing record, never asked of the operator. When r is above
+`0.33` over three waves, a distinct adjudicator is asked whether a push after every group
+becomes the standing rule.
+
+**The exit record.** The exit record is a block of `key: value` lines headed
+`EXIT RECORD` inside the wave-end ledger record, counts and minutes only (no path, no
+environment value, no name), with exactly these keys in this order: `wave`, `B`, `G`,
+`slices` (planned/run), one `slice <item id>` line per slice (planned and measured builder
+minutes), `k` (measured/planned over the wave), `steps_min` (entry, planner, adversary,
+adjudication, landing), `repair_rounds` (with the ids returned to a later wave), `ram_gb`
+(entry, lowest, projected headroom), `memory_pressure_failures`, `stops_at_3x`, `wall_h`,
+`prev_push` (`landed`, or one stop name of the one push; for the stop where a test passes
+when re-run alone, and only where this ritual's timing record holds one, also the
+blocking test's name, which is the part of its node id after the last `::`, with no file
+and no directory), `group_push_blocks` (first-attempt blocks of this wave's per-group
+pushes, `n/a` when it pushed once), `doc_slices`, `r` (waves left local by a test /
+waves), `next` (B, G, `ritual-only` or `per-group`), `sessions_left`. `prev_push` is read
+at the next session's first act: `landed` and the stop that stays red from the remote ref
+against HEAD and the CI run, the two refusal stops from the remote ref and the push log,
+and only the flaky-test stop from the timing record's entry for a blocked flaky test (that
+record has no key for a red test). The last key is written in the ledger record as an
+EXPECTED figure at the measured k and a RISK BOUND figure at k 1, each at r 0 with the r
+band beside it and never one number alone, after the first record that measures k and
+again whenever k or r moved, and it reads `not restated` where its source is unread.
+
+**Slice brief.** Every builder brief carries the lines of the BRIEF RULES AND TRAPS block
+of `CS-NEXT-SESSION.txt` word for word, by pointer and never a copy here, a builder's
+report lists every NEW tracked file by path, no builder writes a bookkeeping file (a
+merger-owned file), and the per-wave collision matrix over the filed write-lists is the
+dispatch precondition.
+
 ### 10.9 Shared documents: ADR numbers, the doctrine and the specification
 
 Three kinds of text are written by more than one slice and so have one route each. This
