@@ -1117,6 +1117,45 @@ def test_a_remembered_account_directory_with_spaces_renders_no_tail(
     )
 
 
+@pytest.mark.parametrize(
+    ("username", "name_word"),
+    [
+        ("zork", "ZORK"),
+        ("zork", "Zork"),
+        ("ZORK", "zork"),
+        ("zork", "zork"),
+    ],
+    ids=["name-upper", "name-mixed", "env-upper", "same-case-control"],
+)
+def test_a_remembered_name_carrying_the_username_in_another_case_still_matches(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, username: str, name_word: str
+) -> None:
+    """The environment pass is case-INSENSITIVE, so the remembered name's substituted form is too.
+
+    The environment pass rewrites a USERNAME needle wherever it sits and
+    whatever case it is in, so a remembered name that opens with the username
+    in ANOTHER case is spelled ``<user> Backup Copy`` by the time the name pass
+    runs. A substituted form built case-sensitively would leave that name
+    unchanged, never meet the text, and the tail would stand. Upper, mixed and
+    lower case are driven in both directions; ``same-case-control`` is green
+    even for a case-sensitive substitution, which is what shows the other three
+    fail because of the case and not because of the fixture.
+    """
+    monkeypatch.setenv("USERNAME", username)
+    account = tmp_path / "backup" / f"{name_word} Backup Copy"
+    account.mkdir(parents=True)
+    monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+    assert locate.resolve_account_dir(None) == account, "the override did not resolve"
+
+    rendered = locate.redact(account / "f.dat")
+
+    leaked = rendered.count("Backup") + rendered.count("Copy")
+    assert leaked == 0, f"{leaked} word(s) of the remembered name survived a case difference"
+    assert rendered.endswith(f"/{locate.ACCOUNT_DIR_PLACEHOLDER}/f.dat"), (
+        "the name went, but not as one placeholder"
+    )
+
+
 @pytest.mark.parametrize("order", ["short-first", "long-first"])
 def test_a_longer_remembered_name_is_matched_whole_whichever_was_remembered_first(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, order: str
