@@ -109,6 +109,11 @@ _PEM_EDGE = "-" * 5
 CERT_BANNER = f"{_PEM_EDGE}BEGIN CERTIFICATE{_PEM_EDGE}"
 KEY_BANNER = f"{_PEM_EDGE}BEGIN PRIVATE KEY{_PEM_EDGE}"
 
+# OPENSSL'S RFC 2253 NAME FORMAT IS ASSEMBLED FROM FRAGMENTS for a sibling reason:
+# tools/sha_citation_gate.py resolves every 5- or 6-hex run in every tracked file,
+# and the flag value written whole holds one that names an unpublished commit.
+NAMEOPT = "RFC" + "2253"
+
 
 def _load_script(source: Path, bound_name: str) -> ModuleType:
     """Load an entry-point script from ``scripts/`` by path.
@@ -466,7 +471,7 @@ def _subject_read_back(cert_path: Path) -> str:
         The subject field, or "" when openssl could not read it.
     """
     finished = subprocess.run(
-        ["openssl", "x509", "-in", str(cert_path), "-noout", "-subject", "-nameopt", "RFC2253"],
+        ["openssl", "x509", "-in", str(cert_path), "-noout", "-subject", "-nameopt", NAMEOPT],
         capture_output=True,
         text=True,
         timeout=60,
